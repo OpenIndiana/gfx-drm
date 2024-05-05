@@ -42,8 +42,8 @@ lint_PROG:	$$(PROG).c
 lint_SRCS:	$$(SRCS)
 	$(LINT.c) $(SRCS) $(LDLIBS)
 
-$(ROOTCMDDIR)/%: $(ROOTCMDDIR) %
-	$(INS.file)
+#$(ROOTCMDDIR)/%: $(ROOTCMDDIR) %
+#	$(INS.file)
 
 $(ROOTCMDDIR) $(ROOTCMDDIR64):
 	$(INS.dir)

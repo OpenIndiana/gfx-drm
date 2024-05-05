@@ -20,7 +20,7 @@ LIBDRM_VERS=2.4.109
 
 LIBDRM_CMN_DIR=$(SRC)/common/libdrm/libdrm-$(LIBDRM_VERS)
 
-ROOTLIBDIR =	$(ROOT)/usr/lib/xorg
+#ROOTLIBDIR =	$(ROOT)/usr/lib/xorg
 ROOTLIBDIR64 =	$(ROOT)/usr/lib/xorg/$(MACH64)
 
 CPPFLAGS +=	-D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE

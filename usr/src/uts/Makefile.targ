@@ -137,11 +137,11 @@ $(LINTS_DIR)/vers.ln: $(SRC)/uts/common/os/vers.c
 $(ROOT_MOD_DIR) $(USR_MOD_DIR):
 	-$(INS.dir)
 
-$(ROOT_MOD_DIRS_32):	$(ROOT_MOD_DIR)
-	-$(INS.dir)
+#$(ROOT_MOD_DIRS_32):	$(ROOT_MOD_DIR)
+#	-$(INS.dir)
 
-$(USR_MOD_DIRS_32):	$(USR_MOD_DIR)
-	-$(INS.dir)
+#$(USR_MOD_DIRS_32):	$(USR_MOD_DIR)
+#	-$(INS.dir)
 
 $(ROOT_MOD_DIR)/%:	$(OBJS_DIR)/% $(ROOT_MOD_DIR) FRC
 	$(INS.file)
@@ -308,13 +308,13 @@ ALL_TARGS	= def all clean clobber lint modlintlib \
 
 ALL_OBJ32	= $(ALL_TARGS:%=%.obj32)
 
-$(ALL_OBJ32):	FRC
-	@BUILD_TYPE=OBJ32 VERSION='$(VERSION)' $(MAKE) $(NO_STATE) $(TARGET).targ
+#$(ALL_OBJ32):	FRC
+#	@BUILD_TYPE=OBJ32 VERSION='$(VERSION)' $(MAKE) $(NO_STATE) $(TARGET).targ
 
-ALL_DEBUG32	= $(ALL_TARGS:%=%.debug32)
+#ALL_DEBUG32	= $(ALL_TARGS:%=%.debug32)
 
-$(ALL_DEBUG32):	FRC
-	@BUILD_TYPE=DBG32 VERSION='$(VERSION)' $(MAKE) $(NO_STATE) $(TARGET).targ
+#$(ALL_DEBUG32):	FRC
+#	@BUILD_TYPE=DBG32 VERSION='$(VERSION)' $(MAKE) $(NO_STATE) $(TARGET).targ
 
 ALL_OBJ64	= $(ALL_TARGS:%=%.obj64)
 
@@ -494,13 +494,13 @@ lint64:
 #	In some places we also need to create fake lintlibs for 32b
 #	dirs so global linting works
 #
-lint32:
-	@$(ECHO) $(MODULE) fake lints
-	@for dir in $(LINT32_DIRS); do \
-		if [ ! -d $$dir ]; then mkdir $$dir; fi \
-	done
-	@for file in $(LINT32_FILES); do \
-		if [ ! -f $$file ]; then touch $$file; fi \
-	done
+#lint32:
+#	@$(ECHO) $(MODULE) fake lints
+#	@for dir in $(LINT32_DIRS); do \
+#		if [ ! -d $$dir ]; then mkdir $$dir; fi \
+#	done
+#	@for file in $(LINT32_FILES); do \
+#		if [ ! -f $$file ]; then touch $$file; fi \
+#	done
 
 FRC:

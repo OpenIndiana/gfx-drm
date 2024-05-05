@@ -290,11 +290,11 @@ $(KRB5SBIN)/%: %
 $(KRB5LIB)/%: %
 	$(INS.file)
 
-$(ROOTBIN)/%: %
-	$(INS.file)
+#$(ROOTBIN)/%: %
+#	$(INS.file)
 
-$(ROOTLIB)/%: %
-	$(INS.file)
+#$(ROOTLIB)/%: %
+#	$(INS.file)
 
 $(ROOTBIN64)/%: %
 	$(INS.file)
@@ -302,8 +302,8 @@ $(ROOTBIN64)/%: %
 $(ROOTLIB64)/%: %
 	$(INS.file)
 
-$(ROOTBIN32)/%: %
-	$(INS.file)
+#$(ROOTBIN32)/%: %
+#	$(INS.file)
 
 $(ROOTSHLIB)/%: %
 	$(INS.file)
@@ -323,8 +323,8 @@ $(ROOTSBIN)/%: %
 $(ROOTUSRSBIN)/%: %
 	$(INS.file)
 
-$(ROOTUSRSBIN32)/%: %
-	$(INS.file)
+#$(ROOTUSRSBIN32)/%: %
+#	$(INS.file)
 
 $(ROOTUSRSBIN64)/%: %
 	$(INS.file)
@@ -465,8 +465,8 @@ $(ROOTSVCPLATFORMSUN4V)/%: %
 $(ROOTSHLIBCCS)/%: ../common/%
 	$(INS.file)
 
-$(ROOTCCSBINLINKDIR)/%: %
-	$(INS.ccsbinlink)
+#$(ROOTCCSBINLINKDIR)/%: %
+#	$(INS.ccsbinlink)
 
 $(ROOTCCSBINLINKDIR64)/%: %
 	$(INS.ccsbinlink64)
