@@ -33,18 +33,18 @@ lint:=		TARGET= lint
 catalog:=       TARGET= catalog
 
 SCRIPT=	Run_all.sh
-ROOTCMD= $(SCRIPT:%=$(ROOTCMDDIR)/%)
+ROOTCMD64= $(SCRIPT:%=$(ROOTCMDDIR)/%)
 
 all clean clobber lint: $(SUBDIRS)
 install: rootdirs .WAIT rootcmd $(SUBDIRS)
 
 # These indirect names (rootdirs, rootcmd) are just so
 # you can make those targets separately from subdirs.
-rootdirs: $(ROOTCMDDIR) $(ROOTCMDDIR64)
-rootcmd: $(ROOTCMD)
+rootdirs: $(ROOTCMDDIR64)
+rootcmd: $(ROOTCMD64)
 
 $(ROOTCMD) := FILEMODE= 755
-$(ROOTCMDDIR)/%.sh: %.sh
+$(ROOTCMDDIR64)/%.sh: %.sh
 	$(INS.file)
 
 $(SUBDIRS): FRC

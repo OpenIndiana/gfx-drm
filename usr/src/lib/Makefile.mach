@@ -38,20 +38,20 @@ $(ROOTLIBDIR)/$(DYNLIB)		:= FILEMODE= 755
 $(ROOTLIBDIR64)/$(DYNLIB)	:= FILEMODE= 755
 
 # install rules
-#$(ROOTLIBDIR)/%: $(MACH)/%
-#	$(INS.file)
+$(ROOTLIBDIR)/%: $(MACH)/%
+	$(INS.file)
 
 $(ROOTLIBDIR64)/%: $(MACH64)/%
 	$(INS.file)
 
-#$(ROOTLIBDIR)/$(LIBLINKS):	$(ROOTLIBDIR)/$(LIBLINKS)$(VERS)
-#	$(INS.liblink)
+$(ROOTLIBDIR)/$(LIBLINKS):	$(ROOTLIBDIR)/$(LIBLINKS)$(VERS)
+	$(INS.liblink)
 
 $(ROOTLIBDIR64)/$(LIBLINKS):	$(ROOTLIBDIR64)/$(LIBLINKS)$(VERS)
 	$(INS.liblink64)
 
-#$(MACHLIBS): FRC
-#	@cd $(@D); pwd; VERSION='$(VERSION)' $(MAKE) $(@F)
+$(MACHLIBS): FRC
+	@cd $(@D); pwd; VERSION='$(VERSION)' $(MAKE) $(@F)
 
 $(MACHLIBS64): FRC
 	@cd $(@D); pwd; VERSION='$(VERSION)' $(MAKE) $(@F)
