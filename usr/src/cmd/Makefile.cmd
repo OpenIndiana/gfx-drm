@@ -302,8 +302,8 @@ $(ROOTBIN64)/%: %
 $(ROOTLIB64)/%: %
 	$(INS.file)
 
-#$(ROOTBIN32)/%: %
-#	$(INS.file)
+$(ROOTBIN32)/%: %
+	$(INS.file)
 
 $(ROOTSHLIB)/%: %
 	$(INS.file)
@@ -323,8 +323,8 @@ $(ROOTSBIN)/%: %
 $(ROOTUSRSBIN)/%: %
 	$(INS.file)
 
-#$(ROOTUSRSBIN32)/%: %
-#	$(INS.file)
+$(ROOTUSRSBIN32)/%: %
+	$(INS.file)
 
 $(ROOTUSRSBIN64)/%: %
 	$(INS.file)
