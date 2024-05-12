@@ -254,7 +254,7 @@ LINTCHECKFLAGS += -erroff=E_NAME_DECL_NOT_USED_DEF2
 #
 # Target Architecture
 #
-TARGETMACH=	$(MACH)
+TARGETMACH=	$(MACH64)
 
 #
 # Allow people to define their own clobber rules.  Normal makefiles

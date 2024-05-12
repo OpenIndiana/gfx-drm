@@ -10,11 +10,12 @@
 #
 
 #
-# Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
+# Copyright 2022 Klaus Ziegler
 #
 
 include ../Makefile.com
+include ../../Makefile.lib.64
 
-DYNFLAGS +=	-R/usr/lib/xorg
+DYNFLAGS +=	-R/usr/lib/xorg/$(MACH64)
 
-install: all $(ROOTLIBS) $(ROOTLINKS) $(ROOTPCS)
+install: all $(ROOTLIBS64) $(ROOTLINKS64) $(ROOTPCS64)

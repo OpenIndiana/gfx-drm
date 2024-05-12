@@ -30,7 +30,7 @@ include ../Makefile.lib
 
 include $(SRC)/common/libdrm/Makefile.drm
 
-SUBDIRS = $(MACH)
+#SUBDIRS = $(MACH)
 $(BUILD64)SUBDIRS += $(MACH64)
 
 all :=		TARGET= all

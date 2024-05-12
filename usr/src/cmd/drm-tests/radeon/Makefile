@@ -15,22 +15,19 @@
 
 include $(SRC)/Makefile.master
 
-SUBDIRS=	$(MACH)
-$(BUILD64)SUBDIRS += $(MACH64)
-
 all	:=	TARGET = all
 install	:=	TARGET = install
 clean	:=	TARGET = clean
 clobber	:=	TARGET = clobber
 lint	:=	TARGET = lint
 
-all:	$(SUBDIRS)
+all:	$(MACH64)
 
-clean clobber lint:	$(SUBDIRS)
+clean clobber lint:	$(MACH64)
 
-install:	$(SUBDIRS)
+install:	$(MACH64)
 
-$(SUBDIRS):	FRC
+$(MACH64):	FRC
 	@cd $@; pwd; $(MAKE) $(TARGET)
 
 FRC:

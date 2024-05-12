@@ -67,7 +67,7 @@ DEF_BUILDSONLY64			= obj64
 $(NOT_RELEASE_BUILD)DEF_BUILDS32	= debug32
 $(NOT_RELEASE_BUILD)DEF_BUILDS64	= debug64
 $(NOT_RELEASE_BUILD)DEF_BUILDSONLY64	= debug64
-ALL_BUILDS32				= obj32 debug32
+#ALL_BUILDS32				= obj32 debug32
 ALL_BUILDS64				= obj64 debug64
 ALL_BUILDSONLY64			= obj64 debug64
 
@@ -101,8 +101,8 @@ OBJS_DIR	= $(OBJS_DIR_$(BUILD_TYPE))
 #	Create defaults so empty rules don't
 #	confuse make
 #
-CLASS_		= 32
-OBJS_DIR_	= debug32
+CLASS_		= 64
+OBJS_DIR_	= debug64
 
 #
 #	Build tools
