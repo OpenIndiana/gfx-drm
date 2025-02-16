@@ -47,8 +47,5 @@ for f in $TESTS ; do
 done
 }
 
-echo "Running all (32-bit)" >&2
-run_all /opt/drm-tests
-
 echo "Running all (64-bit)" >&2
 run_all /opt/drm-tests/amd64
