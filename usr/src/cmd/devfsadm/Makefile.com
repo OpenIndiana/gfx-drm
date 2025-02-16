@@ -87,7 +87,7 @@ lint:
 include ../../Makefile.targ
 
 SUNW_%.so: %.o $(MAPFILES)
-	$(CC) -o $@ $(GSHARED) $(DYNFLAGS) -h $@ $< $(LDLIBS) -lc
+	$(LINK.c) -o $@ $(GSHARED) $(DYNFLAGS) -h $@ $< $(LDLIBS) -lc
 	$(POST_PROCESS_SO)
 
 %.o: $(COMMON)/%.c
