@@ -435,7 +435,7 @@ struct dip_infoframe {
 		} spd;
 		uint8_t payload[27];
 	} __attribute__ ((packed)) body;
-} __attribute__((packed));
+} __attribute__((packed, aligned(4)));
 
 struct intel_hdmi {
 	u32 hdmi_reg;
