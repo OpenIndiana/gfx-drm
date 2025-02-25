@@ -1,0 +1,11 @@
+--- libdrm-2.4.109/xf86drmMode.c.orig
++++ libdrm-2.4.109/xf86drmMode.c
+@@ -960,6 +960,8 @@
+ 
+ 	drmClose(fd);
+ 	return 0;
++#elif defined(__illumos__)
++	return 0;
+ #endif
+ 	return -ENOSYS;
+ }
