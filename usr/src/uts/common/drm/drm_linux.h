@@ -209,4 +209,14 @@ extern long IS_ERR(const void *ptr);
 #define wait_for(COND, MS) _wait_for(COND, MS, 1)
 #define wait_for_atomic(COND, MS) _wait_for(COND, MS, 0)
 
+/*
+ * Memory barriers. Linux smp_*mb() map to illumos membar_*().
+ *   smp_mb()  -- full barrier (acquire + release)
+ *   smp_rmb() -- read barrier (loads won't be reordered before this)
+ *   smp_wmb() -- write barrier (stores won't be reordered after this)
+ */
+#define	smp_mb()	membar_producer(); membar_consumer()
+#define	smp_rmb()	membar_consumer()
+#define	smp_wmb()	membar_producer()
+
 #endif /* __DRM_LINUX_H__ */
