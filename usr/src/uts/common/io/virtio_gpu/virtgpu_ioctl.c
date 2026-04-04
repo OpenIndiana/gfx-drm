@@ -300,30 +300,37 @@ virtio_gpu_context_init_ioctl(DRM_IOCTL_ARGS)
 }
 
 /*
- * Ioctl table using the gfx-drm DRM_IOCTL_DEF format.
- * copyin32/copyout32 are NULL (64-bit only for now).
+ * Ioctl table.
+ *
+ * Uses 0-based indexing: [DRM_IOCTL_NR(ioctl) - DRM_COMMAND_BASE].
+ * This matches the i915 driver's I915_IOCTL_DEF pattern.
  */
-drm_ioctl_desc_t virtio_gpu_ioctls[DRM_VIRTIO_NUM_IOCTLS] = {
-	DRM_IOCTL_DEF(DRM_IOCTL_VIRTGPU_MAP,
-	    virtio_gpu_map_ioctl, DRM_AUTH, NULL, NULL),
-	DRM_IOCTL_DEF(DRM_IOCTL_VIRTGPU_EXECBUFFER,
-	    virtio_gpu_execbuffer_ioctl, DRM_AUTH, NULL, NULL),
-	DRM_IOCTL_DEF(DRM_IOCTL_VIRTGPU_GETPARAM,
-	    virtio_gpu_getparam_ioctl, DRM_AUTH, NULL, NULL),
-	DRM_IOCTL_DEF(DRM_IOCTL_VIRTGPU_RESOURCE_CREATE,
-	    virtio_gpu_resource_create_ioctl, DRM_AUTH, NULL, NULL),
-	DRM_IOCTL_DEF(DRM_IOCTL_VIRTGPU_RESOURCE_INFO,
-	    virtio_gpu_resource_info_ioctl, DRM_AUTH, NULL, NULL),
-	DRM_IOCTL_DEF(DRM_IOCTL_VIRTGPU_TRANSFER_FROM_HOST,
-	    virtio_gpu_transfer_from_host_ioctl, DRM_AUTH, NULL, NULL),
-	DRM_IOCTL_DEF(DRM_IOCTL_VIRTGPU_TRANSFER_TO_HOST,
-	    virtio_gpu_transfer_to_host_ioctl, DRM_AUTH, NULL, NULL),
-	DRM_IOCTL_DEF(DRM_IOCTL_VIRTGPU_WAIT,
-	    virtio_gpu_wait_ioctl, DRM_AUTH, NULL, NULL),
-	DRM_IOCTL_DEF(DRM_IOCTL_VIRTGPU_GET_CAPS,
-	    virtio_gpu_get_caps_ioctl, DRM_AUTH, NULL, NULL),
-	DRM_IOCTL_DEF(DRM_IOCTL_VIRTGPU_RESOURCE_CREATE_BLOB,
-	    virtio_gpu_resource_create_blob_ioctl, DRM_AUTH, NULL, NULL),
-	DRM_IOCTL_DEF(DRM_IOCTL_VIRTGPU_CONTEXT_INIT,
-	    virtio_gpu_context_init_ioctl, DRM_AUTH, NULL, NULL),
+#define	VIRTGPU_IOCTL_DEF(ioctl, _func, _flags) \
+	[DRM_IOCTL_NR(ioctl) - DRM_COMMAND_BASE] = \
+	    {.cmd = ioctl, .flags = _flags, .func = _func, \
+	     .copyin32 = NULL, .copyout32 = NULL}
+
+struct drm_ioctl_desc virtio_gpu_ioctls[DRM_VIRTIO_NUM_IOCTLS] = {
+	VIRTGPU_IOCTL_DEF(DRM_IOCTL_VIRTGPU_MAP,
+	    virtio_gpu_map_ioctl, DRM_AUTH),
+	VIRTGPU_IOCTL_DEF(DRM_IOCTL_VIRTGPU_EXECBUFFER,
+	    virtio_gpu_execbuffer_ioctl, DRM_AUTH),
+	VIRTGPU_IOCTL_DEF(DRM_IOCTL_VIRTGPU_GETPARAM,
+	    virtio_gpu_getparam_ioctl, DRM_AUTH),
+	VIRTGPU_IOCTL_DEF(DRM_IOCTL_VIRTGPU_RESOURCE_CREATE,
+	    virtio_gpu_resource_create_ioctl, DRM_AUTH),
+	VIRTGPU_IOCTL_DEF(DRM_IOCTL_VIRTGPU_RESOURCE_INFO,
+	    virtio_gpu_resource_info_ioctl, DRM_AUTH),
+	VIRTGPU_IOCTL_DEF(DRM_IOCTL_VIRTGPU_TRANSFER_FROM_HOST,
+	    virtio_gpu_transfer_from_host_ioctl, DRM_AUTH),
+	VIRTGPU_IOCTL_DEF(DRM_IOCTL_VIRTGPU_TRANSFER_TO_HOST,
+	    virtio_gpu_transfer_to_host_ioctl, DRM_AUTH),
+	VIRTGPU_IOCTL_DEF(DRM_IOCTL_VIRTGPU_WAIT,
+	    virtio_gpu_wait_ioctl, DRM_AUTH),
+	VIRTGPU_IOCTL_DEF(DRM_IOCTL_VIRTGPU_GET_CAPS,
+	    virtio_gpu_get_caps_ioctl, DRM_AUTH),
+	VIRTGPU_IOCTL_DEF(DRM_IOCTL_VIRTGPU_RESOURCE_CREATE_BLOB,
+	    virtio_gpu_resource_create_blob_ioctl, DRM_AUTH),
+	VIRTGPU_IOCTL_DEF(DRM_IOCTL_VIRTGPU_CONTEXT_INIT,
+	    virtio_gpu_context_init_ioctl, DRM_AUTH),
 };

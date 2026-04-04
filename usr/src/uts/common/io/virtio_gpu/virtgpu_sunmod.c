@@ -184,9 +184,9 @@ virtgpu_attach(dev_info_t *dip, ddi_attach_cmd_t cmd)
 
 	/*
 	 * Initialize virtio framework.
-	 * This probes the device and determines legacy vs modern mode.
+	 * virtio_init takes only dip; feature negotiation is separate.
 	 */
-	virtio_t *vio = virtio_init(dip, VIRTGPU_WANTED_FEATURES, B_TRUE);
+	virtio_t *vio = virtio_init(dip);
 	if (vio == NULL) {
 		cmn_err(CE_WARN, "virtio_gpu: virtio_init failed");
 		ddi_soft_state_free(virtgpu_statep, instance);
@@ -194,7 +194,7 @@ virtgpu_attach(dev_info_t *dip, ddi_attach_cmd_t cmd)
 	}
 
 	/* Negotiate features */
-	if (!virtio_init_features(vio, VIRTGPU_WANTED_FEATURES)) {
+	if (!virtio_init_features(vio, VIRTGPU_WANTED_FEATURES, B_TRUE)) {
 		cmn_err(CE_WARN, "virtio_gpu: feature negotiation failed");
 		virtio_fini(vio, B_TRUE);
 		ddi_soft_state_free(virtgpu_statep, instance);

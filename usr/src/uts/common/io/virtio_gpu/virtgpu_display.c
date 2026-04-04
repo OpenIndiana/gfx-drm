@@ -24,16 +24,54 @@
 
 /* ---- CRTC ---- */
 
-static void
-virtio_gpu_crtc_mode_set_nofb(struct drm_crtc *crtc)
+/*
+ * CRTC mode_set callback.
+ *
+ * 3.14 uses .mode_set (NOT .mode_set_nofb which is post-4.x).
+ * Signature: int mode_set(crtc, mode, adjusted_mode, x, y, old_fb)
+ *
+ * We send SET_SCANOUT to the host with the new mode dimensions.
+ */
+static int
+virtio_gpu_crtc_mode_set(struct drm_crtc *crtc,
+    struct drm_display_mode *mode,
+    struct drm_display_mode *adjusted_mode,
+    int x, int y, struct drm_framebuffer *old_fb)
 {
 	struct drm_device *dev = crtc->dev;
 	struct virtio_gpu_device *vgdev = dev->dev_private;
 	struct virtio_gpu_output *output = drm_crtc_to_virtio_gpu_output(crtc);
 
 	virtio_gpu_cmd_set_scanout(vgdev, output->index, 0,
-	    crtc->mode.hdisplay, crtc->mode.vdisplay, 0, 0);
+	    mode->hdisplay, mode->vdisplay, 0, 0);
 	virtio_gpu_notify(vgdev);
+	return (0);
+}
+
+static void
+virtio_gpu_crtc_dpms(struct drm_crtc *crtc, int mode)
+{
+	/* DPMS control not needed for virtio-gpu */
+}
+
+static void
+virtio_gpu_crtc_prepare(struct drm_crtc *crtc)
+{
+	/* Nothing to prepare */
+}
+
+static void
+virtio_gpu_crtc_commit(struct drm_crtc *crtc)
+{
+	/* Nothing to commit */
+}
+
+static boolean_t
+virtio_gpu_crtc_mode_fixup(struct drm_crtc *crtc,
+    const struct drm_display_mode *mode,
+    struct drm_display_mode *adjusted_mode)
+{
+	return (B_TRUE); /* Accept all modes */
 }
 
 static const struct drm_crtc_funcs virtio_gpu_crtc_funcs = {
@@ -42,13 +80,44 @@ static const struct drm_crtc_funcs virtio_gpu_crtc_funcs = {
 };
 
 static const struct drm_crtc_helper_funcs virtio_gpu_crtc_helper_funcs = {
-	.mode_set_nofb	= virtio_gpu_crtc_mode_set_nofb,
+	.dpms		= virtio_gpu_crtc_dpms,
+	.mode_fixup	= virtio_gpu_crtc_mode_fixup,
+	.mode_set	= virtio_gpu_crtc_mode_set,
+	.prepare	= virtio_gpu_crtc_prepare,
+	.commit		= virtio_gpu_crtc_commit,
 };
 
 /* ---- Encoder ---- */
 
+static void
+virtio_gpu_enc_dpms(struct drm_encoder *encoder, int mode)
+{
+	/* Virtual encoder, nothing to do */
+}
+
+static void
+virtio_gpu_enc_mode_set(struct drm_encoder *encoder,
+    struct drm_display_mode *mode,
+    struct drm_display_mode *adjusted_mode)
+{
+	/* Virtual encoder, nothing to do */
+}
+
+static void
+virtio_gpu_enc_prepare(struct drm_encoder *encoder)
+{
+}
+
+static void
+virtio_gpu_enc_commit(struct drm_encoder *encoder)
+{
+}
+
 static const struct drm_encoder_helper_funcs virtio_gpu_enc_helper_funcs = {
-	.mode_set	= NULL,
+	.dpms		= virtio_gpu_enc_dpms,
+	.mode_set	= virtio_gpu_enc_mode_set,
+	.prepare	= virtio_gpu_enc_prepare,
+	.commit		= virtio_gpu_enc_commit,
 };
 
 /* ---- Connector ---- */
@@ -143,8 +212,8 @@ vgdev_output_init(struct virtio_gpu_device *vgdev, int index)
 		return (ret);
 	drm_connector_helper_add(connector, &virtio_gpu_conn_helper_funcs);
 
-	/* Initialize encoder */
-	ret = drm_encoder_init(dev, encoder, NULL,
+	/* Initialize encoder using simple encoder from atomic shim */
+	ret = drm_simple_encoder_init(dev, encoder,
 	    DRM_MODE_ENCODER_VIRTUAL);
 	if (ret != 0)
 		return (ret);

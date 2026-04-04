@@ -49,6 +49,12 @@
 /* illumos virtio framework */
 #include <sys/virtio/virtio.h>
 
+/*
+ * DMA attributes for vbuf command/response buffers.
+ * These are small (< 256 bytes), contiguous, consistent-mode allocations.
+ */
+extern const ddi_dma_attr_t virtgpu_dma_attr;
+
 #define	DRIVER_NAME	"virtio_gpu"
 #define	DRIVER_DESC	"virtio GPU"
 
@@ -64,6 +70,16 @@
 #define	MAX_RINGS		64
 
 #define	DEBUG_NAME_MAX_LEN	65
+
+/*
+ * Virtio feature bits we want to negotiate.
+ */
+#define	VIRTGPU_WANTED_FEATURES		\
+	((1ULL << VIRTIO_GPU_F_VIRGL) |		\
+	(1ULL << VIRTIO_GPU_F_EDID) |		\
+	(1ULL << VIRTIO_GPU_F_RESOURCE_UUID) |	\
+	(1ULL << VIRTIO_GPU_F_RESOURCE_BLOB) |	\
+	(1ULL << VIRTIO_GPU_F_CONTEXT_INIT))
 
 /* ---- Object parameters ---- */
 
@@ -336,7 +352,7 @@ struct virtio_gpu_fpriv {
 
 /* virtgpu_ioctl.c */
 #define	DRM_VIRTIO_NUM_IOCTLS	12
-extern drm_ioctl_desc_t virtio_gpu_ioctls[DRM_VIRTIO_NUM_IOCTLS];
+extern struct drm_ioctl_desc virtio_gpu_ioctls[DRM_VIRTIO_NUM_IOCTLS];
 
 /* virtgpu_kms.c */
 int  virtio_gpu_init(struct virtio_gpu_device *vgdev);

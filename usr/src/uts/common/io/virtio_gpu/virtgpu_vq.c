@@ -54,6 +54,25 @@
 
 #include "virtgpu_drv.h"
 
+/*
+ * DMA attributes for virtio-gpu command buffers.
+ * Small contiguous allocations, single cookie.
+ */
+const ddi_dma_attr_t virtgpu_dma_attr = {
+	.dma_attr_version	= DMA_ATTR_V0,
+	.dma_attr_addr_lo	= 0x0ULL,
+	.dma_attr_addr_hi	= 0xFFFFFFFFFFFFFFFFULL,
+	.dma_attr_count_max	= 0xFFFFFFFFULL,
+	.dma_attr_align		= 8,
+	.dma_attr_burstsizes	= 0x7FF,
+	.dma_attr_minxfer	= 1,
+	.dma_attr_maxxfer	= 0xFFFFFFFFULL,
+	.dma_attr_seg		= 0xFFFFFFFFFFFFFFFFULL,
+	.dma_attr_sgllen	= 1,		/* single contiguous segment */
+	.dma_attr_granular	= 1,
+	.dma_attr_flags		= 0,
+};
+
 #define	MAX_INLINE_CMD_SIZE	96
 #define	MAX_INLINE_RESP_SIZE	24
 #define	VBUFFER_SIZE		(sizeof (struct virtio_gpu_vbuffer) \
@@ -124,7 +143,7 @@ virtio_gpu_get_vbuf(struct virtio_gpu_device *vgdev,
 	 * one contiguous DMA allocation.
 	 */
 	vbuf->vdma = virtio_dma_alloc(vgdev->vio, VBUFFER_SIZE,
-	    &virtio_dma_attr_sgl, DDI_DMA_CONSISTENT | DDI_DMA_RDWR,
+	    &virtgpu_dma_attr, DDI_DMA_CONSISTENT | DDI_DMA_RDWR,
 	    KM_SLEEP);
 	if (vbuf->vdma != NULL) {
 		/*
@@ -238,10 +257,10 @@ virtio_gpu_queue_fenced_ctrl_buffer(struct virtio_gpu_device *vgdev,
 
 	/*
 	 * Copy cmd data to DMA buffer.
-	 * The DMA VA is at virtio_dma_va(vbuf->vdma).
+	 * The DMA VA is at virtio_dma_va(vbuf->vdma, 0).
 	 * Layout: [cmd (vbuf->size)] [resp (vbuf->resp_size)]
 	 */
-	bcopy(vbuf->buf, virtio_dma_va(vbuf->vdma), vbuf->size);
+	bcopy(vbuf->buf, virtio_dma_va(vbuf->vdma, 0), vbuf->size);
 
 	cmd_pa = virtio_dma_cookie_pa(vbuf->vdma, 0);
 	resp_pa = cmd_pa + (uint64_t)vbuf->size;
@@ -280,7 +299,7 @@ virtio_gpu_queue_fenced_ctrl_buffer(struct virtio_gpu_device *vgdev,
 		 * in free_vbuf() after the host processes the command.
 		 */
 		vbuf->data_dma = virtio_dma_alloc(vgdev->vio,
-		    vbuf->data_size, &virtio_dma_attr_sgl,
+		    vbuf->data_size, &virtgpu_dma_attr,
 		    DDI_DMA_CONSISTENT | DDI_DMA_RDWR, KM_NOSLEEP);
 		if (vbuf->data_dma == NULL) {
 			virtio_chain_free(vic);
@@ -292,7 +311,7 @@ virtio_gpu_queue_fenced_ctrl_buffer(struct virtio_gpu_device *vgdev,
 			return (-ENOMEM);
 		}
 
-		bcopy(vbuf->data_buf, virtio_dma_va(vbuf->data_dma),
+		bcopy(vbuf->data_buf, virtio_dma_va(vbuf->data_dma, 0),
 		    vbuf->data_size);
 
 		data_pa = virtio_dma_cookie_pa(vbuf->data_dma, 0);
@@ -362,7 +381,7 @@ virtio_gpu_dequeue_ctrl_func(struct work_struct *work)
 		 * The response sits at offset vbuf->size in the DMA buffer.
 		 */
 		if (vbuf != NULL && vbuf->vdma != NULL && vbuf->resp_size > 0) {
-			bcopy((char *)virtio_dma_va(vbuf->vdma) + vbuf->size,
+			bcopy((char *)virtio_dma_va(vbuf->vdma, 0) + vbuf->size,
 			    vbuf->resp_buf, vbuf->resp_size);
 		}
 

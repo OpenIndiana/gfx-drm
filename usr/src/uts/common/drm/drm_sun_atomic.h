@@ -154,12 +154,54 @@ drm_atomic_crtc_needs_modeset(struct drm_crtc_state *state)
  * Additional helpers used by the display code.
  */
 
-/* Simple encoder: just an encoder with no special logic */
+/*
+ * Connector register/unregister.
+ * In 3.14, drm_sysfs_connector_add/remove existed but are no-ops on illumos
+ * (no sysfs).  Provide compatibility names.
+ */
+static inline int
+drm_connector_register(struct drm_connector *connector)
+{
+	return (0); /* No sysfs on illumos */
+}
+
+static inline void
+drm_connector_unregister(struct drm_connector *connector)
+{
+	/* No sysfs on illumos */
+}
+
+/*
+ * drm_set_preferred_mode -- mark a mode as preferred.
+ * Not in 3.14, but trivial to implement: find matching mode and set flag.
+ */
+static inline void
+drm_set_preferred_mode(struct drm_connector *connector, int hpref, int vpref)
+{
+	struct drm_display_mode *mode;
+
+	list_for_each_entry(mode, struct drm_display_mode,
+	    &connector->probed_modes, head) {
+		if (mode->hdisplay == hpref && mode->vdisplay == vpref)
+			mode->type |= DRM_MODE_TYPE_PREFERRED;
+	}
+}
+
+/*
+ * Simple encoder: just an encoder with no special logic.
+ * 3.14 drm_encoder_init requires a non-NULL funcs pointer,
+ * so provide a minimal empty one.
+ */
+static const struct drm_encoder_funcs virtgpu_simple_encoder_funcs = {
+	.destroy = drm_encoder_cleanup,
+};
+
 static inline int
 drm_simple_encoder_init(struct drm_device *dev, struct drm_encoder *encoder,
     int encoder_type)
 {
-	return (drm_encoder_init(dev, encoder, NULL, encoder_type));
+	return (drm_encoder_init(dev, encoder,
+	    &virtgpu_simple_encoder_funcs, encoder_type));
 }
 
 /* Connector EDID property */
@@ -206,22 +248,14 @@ drm_mode_config_reset(struct drm_device *dev)
 /* VBlank timer funcs macro (no-op for minimal shim) */
 #define	DRM_CRTC_VBLANK_TIMER_FUNCS
 
-/* GEM framebuffer helpers */
-static inline int
-drm_gem_fb_create_handle(struct drm_framebuffer *fb, struct drm_file *file,
-    unsigned int *handle)
-{
-	return (drm_gem_handle_create(file, fb->obj[0], handle));
-}
-
-static inline void
-drm_gem_fb_destroy(struct drm_framebuffer *fb)
-{
-	if (fb->obj[0] != NULL)
-		drm_gem_object_put(fb->obj[0]);
-	drm_framebuffer_cleanup(fb);
-	kfree(fb);
-}
+/*
+ * GEM framebuffer helpers.
+ *
+ * Note: 3.14 struct drm_framebuffer does NOT have an obj[] array.
+ * The GEM object reference is managed by the driver's framebuffer
+ * wrapper (e.g. virtio_gpu_framebuffer).  These are placeholders
+ * that require the driver to track the GEM object separately.
+ */
 
 /* EDID helpers */
 static inline int

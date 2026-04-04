@@ -27,7 +27,7 @@
  * Ported from Linux drivers/gpu/drm/virtio/virtgpu_kms.c for illumos.
  *
  * Key porting changes:
- *   - virtio_has_feature() -> virtio_feature_present()
+ *   - virtio_has_feature() -> virtio_features_present()
  *   - virtio_find_vqs()    -> two virtio_queue_alloc() calls
  *   - virtio_cread_le()    -> virtio_dev_get32()
  *   - virtio_device_ready() -> virtio_init_complete()
@@ -36,17 +36,6 @@
  */
 
 #include "virtgpu_drv.h"
-
-/*
- * Virtio feature bits we want to negotiate.
- * The framework intersects these with what the device offers.
- */
-#define	VIRTGPU_WANTED_FEATURES		\
-	((1ULL << VIRTIO_GPU_F_VIRGL) |		\
-	(1ULL << VIRTIO_GPU_F_EDID) |		\
-	(1ULL << VIRTIO_GPU_F_RESOURCE_UUID) |	\
-	(1ULL << VIRTIO_GPU_F_RESOURCE_BLOB) |	\
-	(1ULL << VIRTIO_GPU_F_CONTEXT_INIT))
 
 /*
  * Max scatter-gather segments per virtqueue entry.
@@ -174,23 +163,23 @@ virtio_gpu_init(struct virtio_gpu_device *vgdev)
 	mutex_init(&vgdev->obj_free_lock, NULL, MUTEX_DRIVER, NULL);
 
 	/* Check negotiated features */
-	if (virtio_feature_present(vgdev->vio,
+	if (virtio_features_present(vgdev->vio,
 	    (1ULL << VIRTIO_GPU_F_VIRGL)))
 		vgdev->has_virgl_3d = B_TRUE;
 
-	if (virtio_feature_present(vgdev->vio,
+	if (virtio_features_present(vgdev->vio,
 	    (1ULL << VIRTIO_GPU_F_EDID)))
 		vgdev->has_edid = B_TRUE;
 
-	if (virtio_feature_present(vgdev->vio,
+	if (virtio_features_present(vgdev->vio,
 	    (1ULL << VIRTIO_GPU_F_RESOURCE_UUID)))
 		vgdev->has_resource_assign_uuid = B_TRUE;
 
-	if (virtio_feature_present(vgdev->vio,
+	if (virtio_features_present(vgdev->vio,
 	    (1ULL << VIRTIO_GPU_F_RESOURCE_BLOB)))
 		vgdev->has_resource_blob = B_TRUE;
 
-	if (virtio_feature_present(vgdev->vio,
+	if (virtio_features_present(vgdev->vio,
 	    (1ULL << VIRTIO_GPU_F_CONTEXT_INIT)))
 		vgdev->has_context_init = B_TRUE;
 
