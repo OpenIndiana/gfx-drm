@@ -34,7 +34,11 @@ typedef void (* taskq_func_t)(void *);
 	init_work((work), ((taskq_func_t)(func)))
 
 struct work_struct {
-	void (*func) (void *);
+	void		(*func) (void *);
+	kmutex_t	ws_lock;
+	kcondvar_t	ws_cv;
+	boolean_t	ws_pending;	/* dispatch pending or running */
+	boolean_t	ws_inited;	/* lock/cv initialized */
 };
 
 struct workqueue_struct {
@@ -49,5 +53,19 @@ extern struct workqueue_struct *create_workqueue(dev_info_t *dip, char *name);
 extern void destroy_workqueue(struct workqueue_struct *wq);
 extern void cancel_delayed_work(struct workqueue_struct *wq);
 extern void flush_workqueue(struct workqueue_struct *wq);
+
+/*
+ * Global system workqueue and schedule_work / flush_work.
+ *
+ * schedule_work(ws) dispatches to a module-global system workqueue.
+ * flush_work(ws) waits for a specific work_struct to complete.
+ * The system workqueue is created in drm_sun_workqueue_init() and
+ * destroyed in drm_sun_workqueue_fini(), called from _init/_fini.
+ */
+extern void drm_sun_workqueue_init(void);
+extern void drm_sun_workqueue_fini(void);
+extern int  schedule_work(struct work_struct *work);
+extern void flush_work(struct work_struct *work);
+extern boolean_t cancel_work_sync(struct work_struct *work);
 
 #endif /* __DRM_SUN_WORKQUEUE_H__ */

@@ -219,4 +219,147 @@ extern long IS_ERR(const void *ptr);
 #define	smp_rmb()	membar_consumer()
 #define	smp_wmb()	membar_producer()
 
+/*
+ * Byte order macros for 32-bit and 64-bit values.
+ * The existing 16-bit macros use LE_16; extend to 32/64.
+ */
+#ifdef _BIG_ENDIAN
+#define	cpu_to_le32(x)	LE_32(x)
+#define	le32_to_cpu(x)	LE_32(x)
+#define	cpu_to_le64(x)	LE_64(x)
+#define	le64_to_cpu(x)	LE_64(x)
+#define	cpu_to_be32(x)	(x)
+#define	be32_to_cpu(x)	(x)
+#define	cpu_to_be64(x)	(x)
+#define	be64_to_cpu(x)	(x)
+#else
+#define	cpu_to_le32(x)	(x)
+#define	le32_to_cpu(x)	(x)
+#define	cpu_to_le64(x)	(x)
+#define	le64_to_cpu(x)	(x)
+#define	cpu_to_be32(x)	BE_32(x)
+#define	be32_to_cpu(x)	BE_32(x)
+#define	cpu_to_be64(x)	BE_64(x)
+#define	be64_to_cpu(x)	BE_64(x)
+#endif
+
+/*
+ * 64-bit atomics.  illumos has atomic_add_64_nv etc. in <sys/atomic.h>.
+ */
+typedef struct {
+	volatile int64_t	counter;
+} atomic64_t;
+
+#define	ATOMIC64_INIT(i)	{ (i) }
+#define	atomic64_read(v)	((v)->counter)
+#define	atomic64_set(v, i)	((v)->counter = (i))
+#define	atomic64_add(i, v)	atomic_add_64((volatile uint64_t *)&(v)->counter, (i))
+#define	atomic64_sub(i, v)	atomic_add_64((volatile uint64_t *)&(v)->counter, -(i))
+#define	atomic64_inc(v)		atomic_add_64((volatile uint64_t *)&(v)->counter, 1)
+#define	atomic64_dec(v)		atomic_add_64((volatile uint64_t *)&(v)->counter, -1)
+#define	atomic64_inc_return(v)	\
+	((int64_t)atomic_add_64_nv((volatile uint64_t *)&(v)->counter, 1))
+#define	atomic64_dec_return(v)	\
+	((int64_t)atomic_add_64_nv((volatile uint64_t *)&(v)->counter, -1))
+#define	atomic64_add_return(i, v) \
+	((int64_t)atomic_add_64_nv((volatile uint64_t *)&(v)->counter, (i)))
+
+/*
+ * Read-write semaphore.  Map to illumos krwlock_t.
+ */
+#define	rw_semaphore		krwlock_t
+#define	init_rwsem(rwl)		rw_init((rwl), NULL, RW_DRIVER, NULL)
+#define	destroy_rwsem(rwl)	rw_destroy(rwl)
+#define	down_read(rwl)		rw_enter((rwl), RW_READER)
+#define	up_read(rwl)		rw_exit(rwl)
+#define	down_write(rwl)		rw_enter((rwl), RW_WRITER)
+#define	up_write(rwl)		rw_exit(rwl)
+#define	down_read_trylock(rwl)	rw_tryenter((rwl), RW_READER)
+#define	down_write_trylock(rwl)	rw_tryenter((rwl), RW_WRITER)
+
+/*
+ * kvmalloc / kvfree -- on illumos just use kmem.
+ * Linux uses these for allocations that can fall back from kmalloc to vmalloc.
+ */
+#define	kvmalloc(size, flags)		kmem_alloc((size), KM_SLEEP)
+#define	kvmalloc_array(n, sz, flags)	kmem_zalloc((n) * (sz), KM_SLEEP)
+#define	kvzalloc(size, flags)		kmem_zalloc((size), KM_SLEEP)
+#define	kvfree(ptr, size)		kmem_free((ptr), (size))
+
+/*
+ * Simple IDA (ID allocator) -- map to atomic counter for basic use.
+ * Full IDA is available via drm_sun_idr; this covers the simple
+ * ida_alloc/ida_free pattern used by modern DRM for minor numbering etc.
+ */
+typedef struct {
+	atomic_t	counter;
+} ida_simple_t;
+
+#define	DEFINE_IDA(name)	ida_simple_t name = { { 0 } }
+
+/*
+ * ERR_PTR / PTR_ERR / IS_ERR pattern -- already partially defined.
+ * Ensure ERR_PTR and PTR_ERR are available.
+ */
+#ifndef ERR_PTR
+#define	ERR_PTR(err)	((void *)(uintptr_t)(long)(err))
+#define	PTR_ERR(ptr)	((long)(uintptr_t)(ptr))
+#endif
+
+/*
+ * container_of -- widely used in modern DRM.
+ */
+#ifndef container_of
+#define	container_of(ptr, type, member) \
+	((type *)((char *)(ptr) - offsetof(type, member)))
+#endif
+
+/*
+ * Kernel logging helpers used by modern DRM (map to cmn_err).
+ */
+#ifndef pr_err
+#define	pr_err(fmt, ...)	cmn_err(CE_WARN, fmt, ##__VA_ARGS__)
+#define	pr_warn(fmt, ...)	cmn_err(CE_WARN, fmt, ##__VA_ARGS__)
+#define	pr_info(fmt, ...)	cmn_err(CE_NOTE, fmt, ##__VA_ARGS__)
+#define	pr_debug(fmt, ...)	/* nothing */
+#endif
+
+/*
+ * typeof -- GCC and clang support this as __typeof__.
+ */
+#ifndef typeof
+#define	typeof	__typeof__
+#endif
+
+/*
+ * upper_32_bits / lower_32_bits -- used everywhere in DRM for 64-bit splits.
+ */
+#ifndef upper_32_bits
+#define	upper_32_bits(n)	((uint32_t)(((uint64_t)(n)) >> 32))
+#define	lower_32_bits(n)	((uint32_t)((n) & 0xFFFFFFFFUL))
+#endif
+
+/*
+ * Multiplication overflow checking.
+ */
+#ifndef check_mul_overflow
+#define	check_mul_overflow(a, b, res) ({	\
+	typeof(a) __a = (a);			\
+	typeof(b) __b = (b);			\
+	typeof(res) __res = (res);		\
+	*__res = __a * __b;			\
+	(__b != 0 && (*__res / __b) != __a);	\
+})
+#endif
+
+/*
+ * READ_ONCE / WRITE_ONCE -- compiler barrier + volatile access.
+ */
+#ifndef READ_ONCE
+#define	READ_ONCE(x)	(*(volatile typeof(x) *)&(x))
+#endif
+#ifndef WRITE_ONCE
+#define	WRITE_ONCE(x, val)	(*(volatile typeof(x) *)&(x) = (val))
+#endif
+
 #endif /* __DRM_LINUX_H__ */

@@ -76,6 +76,9 @@
 #include "drm_sun_dma_fence.h"
 #include "drm_sun_dma_fence_array.h"
 #include "drm_sun_dma_resv.h"
+#include "drm_sun_completion.h"
+#include "drm_sun_managed.h"
+#include "drm_sun_debugfs.h"
 
 #ifndef __inline__
 #define	__inline__	inline
