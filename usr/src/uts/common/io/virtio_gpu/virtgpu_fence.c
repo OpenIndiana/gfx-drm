@@ -93,7 +93,7 @@ virtio_gpu_fence_emit(struct virtio_gpu_device *vgdev,
 	mutex_enter(&drv->lock);
 	fence->fence_id = fence->f.fence_seqno = ++drv->current_fence_id;
 	dma_fence_get(&fence->f);
-	list_insert_tail(&drv->fences, &fence->node);
+	list_add_tail(&fence->node, &drv->fences, fence);
 	mutex_exit(&drv->lock);
 
 	cmd_hdr->flags |= cpu_to_le32(VIRTIO_GPU_FLAG_FENCE);
@@ -110,26 +110,55 @@ virtio_gpu_fence_event_process(struct virtio_gpu_device *vgdev,
     uint64_t fence_id)
 {
 	struct virtio_gpu_fence_driver *drv = &vgdev->fence_drv;
-	struct virtio_gpu_fence *signaled, *curr, *tmp;
+	struct virtio_gpu_fence *signaled = NULL;
+	struct virtio_gpu_fence *curr, *tmp;
 
 	mutex_enter(&drv->lock);
 	atomic64_set(&vgdev->fence_drv.last_fence_id, fence_id);
 
 	/*
-	 * Walk the fence list looking for the fence with the matching ID.
-	 * Signal that fence plus any earlier fences in the same context.
+	 * Walk the fence list to find the fence matching fence_id.
+	 * Then signal that fence and all earlier fences in the same context.
 	 *
-	 * NOTE: The list_head-based iteration from Linux is replaced with
-	 * a simpler approach for now.  The list_head in drm_sun uses illumos
-	 * list_t semantics.  For initial bring-up, we iterate manually.
-	 *
-	 * TODO: Implement proper list_for_each_entry_safe using illumos list_t.
-	 * For now, this is a placeholder that will be completed when the
-	 * fence list management is fully ported.
+	 * Uses gfx-drm's Linux-compatible list_for_each_entry_safe macro
+	 * from drm_linux_list.h.
 	 */
+	list_for_each_entry_safe(curr, tmp, struct virtio_gpu_fence,
+	    &drv->fences, node) {
+		if (curr->fence_id != fence_id)
+			continue;
 
-	/* Placeholder: signal all fences up to fence_id */
-	/* This will be properly implemented with list iteration in Phase 1.5 */
+		signaled = curr;
+		break;
+	}
+
+	if (signaled == NULL) {
+		mutex_exit(&drv->lock);
+		return;
+	}
+
+	/*
+	 * Signal all fences with a strictly smaller seqno than the
+	 * signaled fence, in the same fence context.
+	 */
+	list_for_each_entry_safe(curr, tmp, struct virtio_gpu_fence,
+	    &drv->fences, node) {
+		if (curr == signaled)
+			continue;
+		if (signaled->f.fence_context != curr->f.fence_context)
+			continue;
+		if (!dma_fence_is_later(&signaled->f, &curr->f))
+			continue;
+
+		dma_fence_signal_locked(&curr->f);
+		list_del(&curr->node);
+		dma_fence_put(&curr->f);
+	}
+
+	/* Signal the target fence itself */
+	dma_fence_signal_locked(&signaled->f);
+	list_del(&signaled->node);
+	dma_fence_put(&signaled->f);
 
 	mutex_exit(&drv->lock);
 }

@@ -180,12 +180,15 @@ virtio_gpu_alloc_cmd_cb(struct virtio_gpu_device *vgdev,
 static void
 free_vbuf(struct virtio_gpu_device *vgdev, struct virtio_gpu_vbuffer *vbuf)
 {
-	if (vbuf->resp_size > MAX_INLINE_RESP_SIZE && vbuf->resp_buf)
+	if (vbuf->resp_size > MAX_INLINE_RESP_SIZE && vbuf->resp_buf != NULL)
 		kmem_free(vbuf->resp_buf, vbuf->resp_size);
-	if (vbuf->data_buf)
-		kmem_free(vbuf->data_buf, vbuf->data_size);
-	if (vbuf->vdma)
+
+	if (vbuf->data_dma != NULL)
+		virtio_dma_free(vbuf->data_dma);
+
+	if (vbuf->vdma != NULL)
 		virtio_dma_free(vbuf->vdma);
+
 	kmem_cache_free(vgdev->vbufs, vbuf);
 }
 
@@ -264,12 +267,44 @@ virtio_gpu_queue_fenced_ctrl_buffer(struct virtio_gpu_device *vgdev,
 
 	/* Optional data payload (device reads) */
 	if (vbuf->data_size > 0 && vbuf->data_buf != NULL) {
+		uint64_t data_pa;
+
 		/*
-		 * TODO: For data payloads, we need a separate DMA allocation.
-		 * For initial bring-up, large data payloads (execbuffer etc.)
-		 * are deferred.  Small inline data is not used by basic
-		 * 2D commands.
+		 * Allocate a DMA buffer for the data payload, copy
+		 * the caller's data into it, and append to the chain.
+		 *
+		 * Used by: RESOURCE_ATTACH_BACKING (mem_entry array),
+		 * SUBMIT_3D (command buffer), RESOURCE_CREATE_BLOB.
+		 *
+		 * The DMA handle is stored in vbuf->data_dma and freed
+		 * in free_vbuf() after the host processes the command.
 		 */
+		vbuf->data_dma = virtio_dma_alloc(vgdev->vio,
+		    vbuf->data_size, &virtio_dma_attr_sgl,
+		    DDI_DMA_CONSISTENT | DDI_DMA_RDWR, KM_NOSLEEP);
+		if (vbuf->data_dma == NULL) {
+			virtio_chain_free(vic);
+			mutex_exit(&vgdev->ctrlq.qlock);
+			DRM_ERROR("virtio_gpu: "
+			    "failed to alloc data DMA (%u bytes)\n",
+			    vbuf->data_size);
+			free_vbuf(vgdev, vbuf);
+			return (-ENOMEM);
+		}
+
+		bcopy(vbuf->data_buf, virtio_dma_va(vbuf->data_dma),
+		    vbuf->data_size);
+
+		data_pa = virtio_dma_cookie_pa(vbuf->data_dma, 0);
+		if (virtio_chain_append(vic, data_pa, vbuf->data_size,
+		    VIRTIO_DIR_DEVICE_READS) != DDI_SUCCESS) {
+			virtio_chain_free(vic);
+			mutex_exit(&vgdev->ctrlq.qlock);
+			DRM_ERROR("virtio_gpu: "
+			    "failed to append data to chain\n");
+			free_vbuf(vgdev, vbuf);
+			return (-ENOMEM);
+		}
 	}
 
 	/* Response buffer (device writes) */
@@ -563,9 +598,12 @@ virtio_gpu_object_attach(struct virtio_gpu_device *vgdev,
 	cmd_p->nr_entries = cpu_to_le32(nents);
 
 	/*
-	 * The mem_entry array follows as a data payload.
-	 * TODO: Attach data_buf with the ents array for the virtqueue.
-	 * For initial bring-up, this needs the data_buf DMA path.
+	 * The mem_entry array is sent as a data payload following the
+	 * command header.  Set data_buf/data_size so the queue function
+	 * copies it into a DMA buffer and appends it to the chain.
+	 *
+	 * data_buf is caller-owned (not freed by free_vbuf).
+	 * The DMA copy lives in vbuf->data_dma, freed at completion.
 	 */
 	vbuf->data_buf = ents;
 	vbuf->data_size = sizeof (*ents) * nents;
@@ -599,17 +637,18 @@ virtio_gpu_cmd_capset_info_cb(struct virtio_gpu_device *vgdev,
 {
 	struct virtio_gpu_resp_capset_info *resp =
 	    (struct virtio_gpu_resp_capset_info *)vbuf->resp_buf;
-	int i = le32_to_cpu(vbuf->seqno); /* index stored in seqno */
+	uint32_t i = vbuf->resp_cb_data ? (uint32_t)(uintptr_t)vbuf->resp_cb_data : 0;
 
-	/* Bounds check */
 	if (vgdev->capsets == NULL)
 		return;
 
 	mutex_enter(&vgdev->display_info_lock);
-	if (i < (int)vgdev->num_capsets || vgdev->capsets != NULL) {
-		/* capset_info responses are indexed by the capset_index */
-		/* For now, parse from the response directly */
-		/* The caller will fill vgdev->capsets[i] */
+	if (i < vgdev->num_capsets) {
+		vgdev->capsets[i].id = le32_to_cpu(resp->capset_id);
+		vgdev->capsets[i].max_version =
+		    le32_to_cpu(resp->capset_max_version);
+		vgdev->capsets[i].max_size =
+		    le32_to_cpu(resp->capset_max_size);
 	}
 	mutex_exit(&vgdev->display_info_lock);
 
@@ -629,18 +668,78 @@ virtio_gpu_cmd_get_capset_info(struct virtio_gpu_device *vgdev, int idx)
 	cmd_p->hdr.type = cpu_to_le32(VIRTIO_GPU_CMD_GET_CAPSET_INFO);
 	cmd_p->capset_index = cpu_to_le32(idx);
 
-	/* Store index for the callback */
-	vbuf->seqno = idx;
+	/* Pass index to callback via resp_cb_data */
+	vbuf->resp_cb_data = (void *)(uintptr_t)idx;
 
 	return (virtio_gpu_queue_ctrl_buffer(vgdev, vbuf));
+}
+
+static void
+virtio_gpu_cmd_capset_cb(struct virtio_gpu_device *vgdev,
+    struct virtio_gpu_vbuffer *vbuf)
+{
+	struct virtio_gpu_resp_capset *resp =
+	    (struct virtio_gpu_resp_capset *)vbuf->resp_buf;
+	struct virtio_gpu_drv_cap_cache *cache_ent = vbuf->resp_cb_data;
+
+	if (cache_ent == NULL)
+		return;
+
+	mutex_enter(&vgdev->display_info_lock);
+	if (cache_ent->caps_cache != NULL) {
+		bcopy(resp->capset_data, cache_ent->caps_cache,
+		    cache_ent->size);
+		atomic_set(&cache_ent->is_valid, 1);
+	}
+	mutex_exit(&vgdev->display_info_lock);
+
+	wake_up(&vgdev->resp_wq);
 }
 
 int
 virtio_gpu_cmd_get_capset(struct virtio_gpu_device *vgdev,
     int idx, int version, struct virtio_gpu_drv_cap_cache **cache_p)
 {
-	/* TODO: Implement capset retrieval */
-	return (-ENOSYS);
+	struct virtio_gpu_get_capset *cmd_p;
+	struct virtio_gpu_vbuffer *vbuf;
+	struct virtio_gpu_drv_cap_cache *cache_ent;
+	void *resp_buf;
+	int max_size;
+
+	if (idx >= (int)vgdev->num_capsets || vgdev->capsets == NULL)
+		return (-EINVAL);
+
+	max_size = vgdev->capsets[idx].max_size;
+
+	cache_ent = kmem_zalloc(sizeof (*cache_ent), KM_SLEEP);
+	cache_ent->id = vgdev->capsets[idx].id;
+	cache_ent->version = version;
+	cache_ent->size = max_size;
+	cache_ent->caps_cache = kmem_zalloc(max_size, KM_SLEEP);
+	atomic_set(&cache_ent->is_valid, 0);
+
+	/* Allocate response buffer large enough for header + capset data */
+	resp_buf = kmem_zalloc(
+	    sizeof (struct virtio_gpu_resp_capset) + max_size, KM_SLEEP);
+
+	cmd_p = virtio_gpu_alloc_cmd_resp(vgdev, virtio_gpu_cmd_capset_cb,
+	    &vbuf, sizeof (*cmd_p),
+	    sizeof (struct virtio_gpu_resp_capset) + max_size,
+	    resp_buf);
+	bzero(cmd_p, sizeof (*cmd_p));
+
+	cmd_p->hdr.type = cpu_to_le32(VIRTIO_GPU_CMD_GET_CAPSET);
+	cmd_p->capset_id = cpu_to_le32(vgdev->capsets[idx].id);
+	cmd_p->capset_version = cpu_to_le32(version);
+
+	vbuf->resp_cb_data = cache_ent;
+
+	mutex_enter(&vgdev->display_info_lock);
+	list_add_tail(&cache_ent->head, &vgdev->cap_cache, cache_ent);
+	mutex_exit(&vgdev->display_info_lock);
+
+	*cache_p = cache_ent;
+	return (virtio_gpu_queue_ctrl_buffer(vgdev, vbuf));
 }
 
 /* ---- Display info ---- */
@@ -655,7 +754,11 @@ virtio_gpu_cmd_get_display_info_cb(struct virtio_gpu_device *vgdev,
 
 	mutex_enter(&vgdev->display_info_lock);
 	for (i = 0; i < vgdev->num_scanouts; i++) {
-		/* TODO: Store display info in vgdev->outputs[i] */
+		vgdev->outputs[i].info = resp->pmodes[i];
+		DRM_DEBUG("scanout %u: %ux%u enabled=%u\n",
+		    i, le32_to_cpu(resp->pmodes[i].r.width),
+		    le32_to_cpu(resp->pmodes[i].r.height),
+		    le32_to_cpu(resp->pmodes[i].enabled));
 	}
 	vgdev->display_info_pending = B_FALSE;
 	mutex_exit(&vgdev->display_info_lock);
@@ -735,14 +838,42 @@ void
 virtio_gpu_cmd_context_attach_resource(struct virtio_gpu_device *vgdev,
     uint32_t ctx_id, struct virtio_gpu_object_array *objs)
 {
-	/* TODO */
+	struct virtio_gpu_ctx_resource *cmd_p;
+	struct virtio_gpu_vbuffer *vbuf;
+	struct virtio_gpu_object *bo;
+
+	bo = gem_to_virtio_gpu_obj(objs->objs[0]);
+
+	cmd_p = virtio_gpu_alloc_cmd(vgdev, &vbuf, sizeof (*cmd_p));
+	bzero(cmd_p, sizeof (*cmd_p));
+	vbuf->objs = objs;
+
+	cmd_p->hdr.type = cpu_to_le32(VIRTIO_GPU_CMD_CTX_ATTACH_RESOURCE);
+	cmd_p->hdr.ctx_id = cpu_to_le32(ctx_id);
+	cmd_p->resource_id = cpu_to_le32(bo->hw_res_handle);
+
+	(void) virtio_gpu_queue_ctrl_buffer(vgdev, vbuf);
 }
 
 void
 virtio_gpu_cmd_context_detach_resource(struct virtio_gpu_device *vgdev,
     uint32_t ctx_id, struct virtio_gpu_object_array *objs)
 {
-	/* TODO */
+	struct virtio_gpu_ctx_resource *cmd_p;
+	struct virtio_gpu_vbuffer *vbuf;
+	struct virtio_gpu_object *bo;
+
+	bo = gem_to_virtio_gpu_obj(objs->objs[0]);
+
+	cmd_p = virtio_gpu_alloc_cmd(vgdev, &vbuf, sizeof (*cmd_p));
+	bzero(cmd_p, sizeof (*cmd_p));
+	vbuf->objs = objs;
+
+	cmd_p->hdr.type = cpu_to_le32(VIRTIO_GPU_CMD_CTX_DETACH_RESOURCE);
+	cmd_p->hdr.ctx_id = cpu_to_le32(ctx_id);
+	cmd_p->resource_id = cpu_to_le32(bo->hw_res_handle);
+
+	(void) virtio_gpu_queue_ctrl_buffer(vgdev, vbuf);
 }
 
 void

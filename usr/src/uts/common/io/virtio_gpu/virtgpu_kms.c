@@ -56,6 +56,34 @@
 #define	VIRTGPU_MAX_SEGS	16
 
 static void
+virtio_gpu_config_changed_work_func(struct work_struct *work)
+{
+	struct virtio_gpu_device *vgdev =
+	    container_of(work, struct virtio_gpu_device,
+	    config_changed_work);
+	uint32_t events_read, events_clear = 0;
+
+	/* Read config space for pending events */
+	events_read = virtio_dev_get32(vgdev->vio,
+	    offsetof(struct virtio_gpu_config, events_read));
+
+	if (events_read & VIRTIO_GPU_EVENT_DISPLAY) {
+		if (vgdev->num_scanouts) {
+			if (vgdev->has_edid)
+				virtio_gpu_cmd_get_edids(vgdev);
+			virtio_gpu_cmd_get_display_info(vgdev);
+			virtio_gpu_notify(vgdev);
+		}
+		events_clear |= VIRTIO_GPU_EVENT_DISPLAY;
+	}
+
+	/* Acknowledge events by writing to events_clear */
+	virtio_dev_put32(vgdev->vio,
+	    offsetof(struct virtio_gpu_config, events_clear),
+	    events_clear);
+}
+
+static void
 virtio_gpu_init_vq(struct virtio_gpu_queue *vgvq,
     void (*work_func)(struct work_struct *))
 {
@@ -135,19 +163,14 @@ virtio_gpu_init(struct virtio_gpu_device *vgdev)
 
 	vgdev->fence_drv.context = dma_fence_context_alloc(1);
 	mutex_init(&vgdev->fence_drv.lock, NULL, MUTEX_DRIVER, NULL);
-	list_create(&vgdev->fence_drv.fences,
-	    sizeof (struct virtio_gpu_fence),
-	    offsetof(struct virtio_gpu_fence, node));
-	list_create(&vgdev->cap_cache,
-	    sizeof (struct virtio_gpu_drv_cap_cache),
-	    offsetof(struct virtio_gpu_drv_cap_cache, head));
+	INIT_LIST_HEAD(&vgdev->fence_drv.fences);
+	INIT_LIST_HEAD(&vgdev->cap_cache);
 
-	INIT_WORK(&vgdev->config_changed_work, NULL); /* TODO: config handler */
+	INIT_WORK(&vgdev->config_changed_work,
+	    (taskq_func_t)virtio_gpu_config_changed_work_func);
 	INIT_WORK(&vgdev->obj_free_work,
 	    (taskq_func_t)virtio_gpu_array_put_free_work);
-	list_create(&vgdev->obj_free_list,
-	    sizeof (struct virtio_gpu_object_array),
-	    offsetof(struct virtio_gpu_object_array, next));
+	INIT_LIST_HEAD(&vgdev->obj_free_list);
 	mutex_init(&vgdev->obj_free_lock, NULL, MUTEX_DRIVER, NULL);
 
 	/* Check negotiated features */

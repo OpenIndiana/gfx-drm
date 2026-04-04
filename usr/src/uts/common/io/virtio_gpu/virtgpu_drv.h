@@ -176,16 +176,16 @@ typedef void (*virtio_gpu_resp_cb)(struct virtio_gpu_device *vgdev,
     struct virtio_gpu_vbuffer *vbuf);
 
 struct virtio_gpu_vbuffer {
-	char		*buf;
-	int		size;
+	char		*buf;		/* command buffer (inline after vbuf) */
+	int		size;		/* command size */
 
-	void		*data_buf;
-	uint32_t	data_size;
+	void		*data_buf;	/* optional data payload (caller-owned) */
+	uint32_t	data_size;	/* data payload size */
 
-	char		*resp_buf;
-	int		resp_size;
-	virtio_gpu_resp_cb resp_cb;
-	void		*resp_cb_data;
+	char		*resp_buf;	/* response buffer (inline or external) */
+	int		resp_size;	/* response size */
+	virtio_gpu_resp_cb resp_cb;	/* response callback */
+	void		*resp_cb_data;	/* callback private data */
 
 	struct virtio_gpu_object_array *objs;
 	struct list_head list;
@@ -193,10 +193,13 @@ struct virtio_gpu_vbuffer {
 	uint32_t	seqno;
 
 	/*
-	 * illumos-specific: DMA handle for this vbuf's memory so we
-	 * can get the physical address for virtio_chain_append().
+	 * illumos DMA backing.  Each vbuf gets a DMA allocation so we
+	 * know the physical address for virtio_chain_append().
+	 * vdma backs the inline cmd+resp region.
+	 * data_dma backs the optional data payload (allocated at submit).
 	 */
-	virtio_dma_t	*vdma;
+	virtio_dma_t	*vdma;		/* DMA for cmd+resp */
+	virtio_dma_t	*data_dma;	/* DMA for data payload (if any) */
 };
 
 /* ---- Fence driver ---- */
@@ -245,6 +248,17 @@ struct virtio_gpu_drv_cap_cache {
 	atomic_t	is_valid;
 };
 
+/* ---- Display output (minimal for headless, expanded in Phase 5) ---- */
+
+struct virtio_gpu_output {
+	int			index;
+	struct virtio_gpu_display_one info;
+	struct virtio_gpu_update_cursor cursor;
+	int			cur_x;
+	int			cur_y;
+	boolean_t		needs_modeset;
+};
+
 /* ---- Main device structure ---- */
 
 struct virtio_gpu_device {
@@ -254,6 +268,7 @@ struct virtio_gpu_device {
 	virtio_t		*vio;
 	dev_info_t		*dip;
 
+	struct virtio_gpu_output outputs[VIRTIO_GPU_MAX_SCANOUTS];
 	uint32_t		num_scanouts;
 
 	struct virtio_gpu_queue	ctrlq;
@@ -440,19 +455,6 @@ void virtio_gpu_debugfs_init(struct drm_minor *minor);
 /* virtgpu_submit.c */
 int  virtio_gpu_execbuffer_ioctl(struct drm_device *dev, void *data,
     struct drm_file *file);
-
-/*
- * Display structures -- forward declarations only.
- * Full display support is deferred to Phase 5.
- */
-struct virtio_gpu_output {
-	int			index;
-	struct virtio_gpu_display_one info;
-	struct virtio_gpu_update_cursor cursor;
-	int			cur_x;
-	int			cur_y;
-	boolean_t		needs_modeset;
-};
 
 /* virtgpu_display.c (stub for now) */
 int  virtio_gpu_modeset_init(struct virtio_gpu_device *vgdev);
