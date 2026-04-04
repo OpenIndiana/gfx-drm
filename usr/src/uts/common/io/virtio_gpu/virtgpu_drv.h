@@ -252,12 +252,18 @@ struct virtio_gpu_drv_cap_cache {
 
 struct virtio_gpu_output {
 	int			index;
+	struct drm_crtc		crtc;
+	struct drm_connector	conn;
+	struct drm_encoder	enc;
 	struct virtio_gpu_display_one info;
 	struct virtio_gpu_update_cursor cursor;
 	int			cur_x;
 	int			cur_y;
 	boolean_t		needs_modeset;
 };
+
+#define	drm_crtc_to_virtio_gpu_output(x) \
+	container_of(x, struct virtio_gpu_output, crtc)
 
 /* ---- Main device structure ---- */
 
