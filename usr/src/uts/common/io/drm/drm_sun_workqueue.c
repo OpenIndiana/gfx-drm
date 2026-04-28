@@ -27,8 +27,49 @@
 
 #include <sys/sunddi.h>
 #include <sys/types.h>
+#include <sys/cmn_err.h>
+#include <sys/mutex.h>
+#include <sys/condvar.h>
 
 #include "drm_sun_workqueue.h"
+
+/*
+ * Module-global system workqueue for schedule_work().
+ */
+static struct workqueue_struct *drm_system_wq;
+
+void
+drm_sun_workqueue_init(void)
+{
+	drm_system_wq = create_workqueue(NULL, "drm_sys_wq");
+}
+
+void
+drm_sun_workqueue_fini(void)
+{
+	if (drm_system_wq != NULL) {
+		destroy_workqueue(drm_system_wq);
+		drm_system_wq = NULL;
+	}
+}
+
+/*
+ * Wrapper that signals completion after the real work function runs.
+ */
+static void
+work_wrapper(void *arg)
+{
+	struct work_struct *work = arg;
+
+	work->func(work);
+
+	if (work->ws_inited) {
+		mutex_enter(&work->ws_lock);
+		work->ws_pending = B_FALSE;
+		cv_broadcast(&work->ws_cv);
+		mutex_exit(&work->ws_lock);
+	}
+}
 
 int
 __queue_work(struct workqueue_struct *wq, struct work_struct *work)
@@ -37,14 +78,28 @@ __queue_work(struct workqueue_struct *wq, struct work_struct *work)
 
 	ASSERT(wq->taskq != NULL);
 	ASSERT(work->func != NULL);
+
+	if (work->ws_inited) {
+		mutex_enter(&work->ws_lock);
+		work->ws_pending = B_TRUE;
+		mutex_exit(&work->ws_lock);
+	}
+
 	/*
 	 * ddi_taskq_dispatch can fail if there aren't enough memory
 	 * resources.  In theory, since we are requesting a SLEEP
 	 * allocation, it would be very rare to fail
 	 */
-	if ((ret = ddi_taskq_dispatch(wq->taskq, work->func, work, DDI_SLEEP))
-	    == DDI_FAILURE)
+	if ((ret = ddi_taskq_dispatch(wq->taskq, work_wrapper, work,
+	    DDI_SLEEP)) == DDI_FAILURE) {
 		cmn_err(CE_WARN, "queue_work: ddi_taskq_dispatch failure");
+		if (work->ws_inited) {
+			mutex_enter(&work->ws_lock);
+			work->ws_pending = B_FALSE;
+			cv_broadcast(&work->ws_cv);
+			mutex_exit(&work->ws_lock);
+		}
+	}
 	return (ret);
 }
 
@@ -52,6 +107,10 @@ void
 init_work(struct work_struct *work, void (*func)(void *))
 {
 	work->func = func;
+	mutex_init(&work->ws_lock, NULL, MUTEX_DRIVER, NULL);
+	cv_init(&work->ws_cv, NULL, CV_DRIVER, NULL);
+	work->ws_pending = B_FALSE;
+	work->ws_inited = B_TRUE;
 }
 
 struct workqueue_struct *
@@ -86,8 +145,60 @@ cancel_delayed_work(struct workqueue_struct *wq)
 {
 	ddi_taskq_wait(wq->taskq);
 }
+
 void
 flush_workqueue(struct workqueue_struct *wq)
 {
 	ddi_taskq_wait(wq->taskq);
+}
+
+/*
+ * schedule_work -- dispatch work to the global system workqueue.
+ */
+int
+schedule_work(struct work_struct *work)
+{
+	if (drm_system_wq == NULL) {
+		cmn_err(CE_WARN,
+		    "schedule_work: system workqueue not initialized");
+		return (DDI_FAILURE);
+	}
+	return (__queue_work(drm_system_wq, work));
+}
+
+/*
+ * flush_work -- wait for a specific work_struct to complete.
+ */
+void
+flush_work(struct work_struct *work)
+{
+	if (!work->ws_inited)
+		return;
+
+	mutex_enter(&work->ws_lock);
+	while (work->ws_pending)
+		cv_wait(&work->ws_cv, &work->ws_lock);
+	mutex_exit(&work->ws_lock);
+}
+
+/*
+ * cancel_work_sync -- cancel work and wait for completion.
+ * On illumos we cannot actually cancel a dispatched taskq entry,
+ * so we just wait for it to finish.  Returns B_TRUE if work was pending.
+ */
+boolean_t
+cancel_work_sync(struct work_struct *work)
+{
+	boolean_t was_pending;
+
+	if (!work->ws_inited)
+		return (B_FALSE);
+
+	mutex_enter(&work->ws_lock);
+	was_pending = work->ws_pending;
+	while (work->ws_pending)
+		cv_wait(&work->ws_cv, &work->ws_lock);
+	mutex_exit(&work->ws_lock);
+
+	return (was_pending);
 }

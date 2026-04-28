@@ -48,6 +48,8 @@ file path=kernel/kmdb/$(ARCH64)/i915 group=sys mode=0555
 dir  path=kernel/misc group=sys
 dir  path=kernel/misc/$(ARCH64) group=sys
 file path=kernel/misc/$(ARCH64)/drm group=sys mode=0755
+file path=kernel/drv/$(ARCH64)/virtio_gpu group=sys mode=0755
+file path=kernel/drv/virtio_gpu.conf group=sys
 dir  path=usr/lib
 dir  path=usr/lib/devfsadm group=sys
 dir  path=usr/lib/devfsadm/linkmod group=sys
@@ -175,6 +177,9 @@ driver name=i915 perms="* 0644 root sys" \
     alias=pci8086,a001 \
     alias=pci8086,a011
 #file path=usr/share/man/man7d/radeon.7d
+# virtio-gpu: paravirtual GPU for QEMU/KVM/bhyve VMs
+driver name=virtio_gpu perms="* 0644 root sys" \
+    alias=pci1af4,1050
 legacy pkg=SUNWdrmr desc="Direct Rendering Manager kernel drivers and modules" \
     name="DRM Kernel Drivers, (Root)"
 license usr/src/uts/common/io/drm/LICENSE_DRM \

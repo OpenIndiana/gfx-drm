@@ -57,10 +57,14 @@ DRM_OBJS = ati_pcigart.o \
 	drm_rect.o \
 	drm_scatter.o \
 	drm_stub.o \
+	drm_sun_dma_fence.o \
+	drm_sun_dma_fence_array.o \
+	drm_sun_dma_resv.o \
 	drm_sun_i2c.o \
 	drm_sun_idr.o \
 	drm_sun_pci.o \
 	drm_sun_timer.o \
 	drm_sun_workqueue.o \
+	drm_sun_ww_mutex.o \
 	drm_sunmod.o \
 	drm_sysfs.o

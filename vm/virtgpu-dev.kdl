@@ -1,0 +1,116 @@
+// OpenIndiana development image for virtio-gpu DRM driver testing
+//
+// Includes: GCC 10, system headers, onbld tools, SSH with root access
+// Serial console on ttya for headless QEMU use
+//
+// Build:
+//   forger build --spec /home/toasty/ws/illumos/vm/virtgpu-dev.kdl
+//
+// Run:
+//   qemu-system-x86_64 -m 8192 -smp 4 -enable-kvm -cpu host \
+//     -drive file=output/vm.qcow2,format=qcow2,if=none,id=disk0 \
+//     -device ahci,id=ahci0 -device ide-hd,drive=disk0,bus=ahci0.0 \
+//     -device virtio-gpu-pci \
+//     -device virtio-net-pci,netdev=net0 \
+//     -netdev user,id=net0,hostfwd=tcp::2222-:22 \
+//     -display none -serial stdio
+//
+// SSH:
+//   ssh -p 2222 root@localhost
+
+metadata name="openindiana-virtgpu-dev" version="0.1.0" description="OpenIndiana dev image for virtio-gpu DRM driver testing"
+
+repositories {
+    publisher name="openindiana.org" origin="https://pkg.openindiana.org/hipster/"
+}
+
+incorporation "entire"
+
+variants {
+    set name="opensolaris.zone" value="global"
+}
+
+packages {
+    // Core utilities
+    package "/editor/vim"
+    package "/network/rsync"
+    package "/network/openssh-server"
+    package "/web/curl"
+
+    // Virtio drivers for QEMU
+    package "/driver/crypto/viorand"
+    package "/driver/network/vioif"
+    package "/driver/storage/vioblk"
+    package "/driver/storage/vioscsi"
+    package "/driver/storage/vio9p"
+
+    // Build toolchain — same GCC as illumos-gate
+    package "/developer/gcc-10"
+    package "/system/header"
+    package "/developer/build/onbld"
+    package "/developer/build/make"
+
+    // DRM build dependencies
+    package "/system/library/gcc-runtime"
+    package "/system/library/g++-runtime"
+
+    // Useful for testing
+    package "/diagnostic/scanpci"
+
+    // Time sync
+    package "/service/network/ntpsec"
+}
+
+// Shared device filesystem and SMF/network setup
+// NOTE: Copy this file into the refraction-forger images/ directory,
+// or symlink it, so these includes resolve correctly.
+include "devfs.kdl"
+include "common.kdl"
+
+// ── SSH — allow root login with password for dev convenience ───────────
+overlays {
+    file destination="/etc/ssh/sshd_config" content=r#"Protocol 2
+Port 22
+PermitRootLogin yes
+PasswordAuthentication yes
+ChallengeResponseAuthentication no
+PubkeyAuthentication yes
+AuthorizedKeysFile .ssh/authorized_keys
+PermitEmptyPasswords no
+StrictModes yes
+LoginGraceTime 120
+MaxAuthTries 6
+X11Forwarding no
+PrintMotd no
+Subsystem sftp internal-sftp
+"# owner="root" group="root" mode="644"
+}
+
+// ── Boot console on ttya (serial) ──────────────────────────────────────
+overlays {
+    file destination="/boot/conf.d/console" content="console=ttya" owner="root" group="root" mode="644"
+    file destination="/etc/default/init" content="TZ=UTC\nCMASK=022\n" owner="root" group="root" mode="644"
+
+    // Root password: openindiana
+    shadow username="root" password="$5$1na3Q93mNs3GvO7t$modh6wVjBjwOjflWn2ifP36qhzQX1y8j.YbCp4oxwAD"
+
+    // SSH authorized key
+    ensure-dir "/root/.ssh" owner="root" group="root" mode="700"
+    file destination="/root/.ssh/authorized_keys" content="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILcp4Wgea5V8N750xcRGil1rrdd+mCpwYBspNwwb45SN\n" owner="root" group="root" mode="600"
+}
+
+// ── 4GB swap zvol ──────────────────────────────────────────────────────
+overlays {
+    // swap will be created at first boot via SMF or manually:
+    //   zfs create -V 4G rpool/swap && swap -a /dev/zvol/dsk/rpool/swap
+}
+
+// ── Bootable QCOW2 target — 20GB for build space ──────────────────────
+target "qcow2" kind="qcow2" {
+    disk-size "20000M"
+    bootloader "uefi"
+
+    pool {
+        property name="ashift" value="12"
+    }
+}
