@@ -1,40 +1,40 @@
-
-Dec-30-2021 - Klaus Ziegler
+Sep-30-2026
 
 To upgrade libdrm:
 
-change LIBDRM_VERS in
-usr/src/common/libdrm/Makefile
-usr/src/common/libdrm/Makefile.drm
-LIBDRM_HASH in
-usr/src/common/libdrm/Makefile
+1. Change LIBDRM_VERS in usr/src/common/libdrm/Makefile and
+   usr/src/common/libdrm/Makefile.drm, LIBDRM_HASH (SHA-256 of the
+   tarball from https://dri.freedesktop.org/libdrm/) in
+   usr/src/common/libdrm/Makefile, and ref/dir in
+   usr/src/common/libdrm/Check-patches.  If the archive extension
+   changes, change LIBDRM_ARCHIVE and the manifest
+   usr/src/pkg/manifests/x11-library-libdrm.mf.
 
-If the file extension of the file to be downloaded has changed, it must be
-changed in usr/src/pkg/manifests/x11-library-libdrm.mf and LIBDRM_ARCHIVE in
-usr/src/common/libdrm/Makefile must be modified accordingly.
+2. Rebase the patches in usr/src/common/libdrm/patches: unpack the new
+   tarball twice (libdrm-<version> and libdrm-<version>-ref), apply and
+   fix the patches in the first copy, then run Check-patches from
+   usr/src/common/libdrm (after "mkdir checkpatch") and copy the result
+   to patches/.  Drop patches upstream made unnecessary.
 
-# NOTE: if you want to contribute changes to this graphics/DRM gate,
-# please use your own fork of gfx-drm.git and substitute HTTPS/URL below,
-# to match your repository.
+3. The patched drm.h, drm_fourcc.h, drm_mode.h, drm_sarea.h and
+   i915_drm.h must be identical to the kernel copies in
+   usr/src/uts/common/drm; the "check" target of
+   usr/src/common/libdrm/Makefile fails otherwise.  Copy the patched
+   headers there and make sure the drm and i915 kernel modules still
+   build.  Compare the size of every uAPI structure and the value of
+   every DRM_IOCTL_* macro between the old and the new headers: a grown
+   core structure changes its ioctl number on illumos (see
+   README.illumos, "ioctl numbers") and may need an entry in
+   usr/src/lib/libdrm/common/sun_ioctl.c.
 
-After you have setup a build environment as follows:
-git clone https://github.com/illumos/gfx-drm.git
-cd gfx-drm
-export BLDENV=tools/bldenv
-chmod 755 tools/bldenv
+4. Compare the sources each library builds (the files() lists in the
+   meson.build files) with OBJECTS in usr/src/lib/*/Makefile.com, the
+   headers upstream installs with HDRS/DRM_HDRS, and new config.set*()
+   defines in meson.build with Makefile.drm.  Update the manifests in
+   usr/src/pkg/manifests.
 
-edit myenv.sh to suite your needs, and start the first build:
-/usr/bin/env -i $BLDENV myenv.sh "cd usr/src; make install"
-
-most likely this first build will err'out right after unpacking
-the new library archive. At this stage the make target: check
-is run, which checks differences of gfx-drm headers and the
-new library supplied headers, these 5 headers will be checked:
-
-drm.h drm_fourcc.h drm_mode.h drm_sarea.h i915_drm.h
-
-To pass check target, generate patch files for these headers:
-cd usr/src/common/libdrm/libdrm-2.4.<new-version>/include/drm
-gdiff -u drm.h <WS>/usr/src/uts/common/drm/drm.h > /tmp/drm.h.patch
-and the others as well, then apply these patches to headers
-contained in usr/src/uts/common/drm and restart the build.
+5. Build and package as described in README:
+	make install
+	make package
+   and run /opt/drm-tests/amd64/getsundev and drmdevice on a machine
+   with a DRM device.
