@@ -1,354 +1,480 @@
 /*
- * CDDL HEADER START
+ * This file and its contents are supplied under the terms of the
+ * Common Development and Distribution License ("CDDL"), version 1.0.
+ * You may only use this file in accordance with the terms of version
+ * 1.0 of the CDDL.
  *
- * The contents of this file are subject to the terms of the
- * Common Development and Distribution License (the "License").
- * You may not use this file except in compliance with the License.
- *
- * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
- * or http://www.opensolaris.org/os/licensing.
- * See the License for the specific language governing permissions
- * and limitations under the License.
- *
- * When distributing Covered Code, include this CDDL HEADER in each
- * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
- * If applicable, add the following below this CDDL HEADER, with the
- * fields enclosed by brackets "[]" replaced with your own identifying
- * information: Portions Copyright [yyyy] [name of copyright owner]
- *
- * CDDL HEADER END
- */
-/*
- * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
- */
-/*
- * Copyright 2017 Gordon W. Ross
+ * A full copy of the text of the CDDL should have accompanied this
+ * source.  A copy of the CDDL is also available via the Internet at
+ * http://www.illumos.org/license/CDDL.
  */
 
 /*
- * Helper functions for sun_xf86drm.c to find DRM device nodes
- * given a pair of device major/minor numbers.
- *
- * Some of this code was cribbed from the "prtconf" command.
+ * Copyright 2026 Till Wegmueller
  */
 
 /*
- * Device major numbers on illumos and Solaris are dynamic.
+ * The illumos device layer of libdrm: how xf86drm.c finds DRM nodes, their
+ * types, the device they belong to and its bus.  Linux answers these
+ * questions from sysfs; here the answers come from the /dev/dri links and
+ * from libdevinfo.
  *
- * Device node naming is also different.  See:
- *	uts/common/io/drm/drm_stub.c drm_get_minor()
- *	uts/common/io/drm/drm_sysfs.c drm_sysfs_device_add()
+ * Nodes.  devfsadm(8) (SUNW_drm_link, cmd/devfsadm/drm_link_i386.c) links
+ * every minor node of type DDI_NT_DISPLAY_DRM ("ddi_display:drm") into
+ * /dev/dri, using the minor name:
  *
- * Device "types" (encoded in some of the minor bits)
- * Typical device setup with intel graphics:
+ *	driver			minor name	/dev/dri link	node minor
+ *	Rust DRM core		card<N>		card<N>		N
+ *	(rdrmnull, virtio_gpu)	renderD<128+N>	renderD<128+N>	128 + N
+ *	gfx-drm drm/i915	drm<N>		card<N>		N
+ *				controlD<N>	controlD<N>	64 + N
  *
- * DRM_MINOR_LEGACY	/devices/pci@0,0/display@2:drm0
- * DRM_MINOR_CONTROL	/devices/pci@0,0/display@2:controlD0
- * DRM_MINOR_RENDER	/devices/pci@0,0/display@2:renderD0
- * DRM_MINOR_VGATEXT	/devices/pci@0,0/display@2:gfx0
- * DRM_MINOR_AGPMASTER	/devices/pci@0,0/display@2:agpmaster0
+ * The directory is the only place that knows the name libdrm and Mesa
+ * use for a node, so it is the index: a node's type comes from its link
+ * name (card, controlD, renderD), never from its minor number, whose
+ * layout differs between the two kernels.
  *
- * The "devlinks" system also makes links under /dev
- * which normally look something like this:
+ * Open files.  Both kernels clone every open (drm_sun_open() in gfx-drm,
+ * CharDevice::clone_open in the Rust core): the file's dev_t carries the
+ * node minor in its low nine bits and a clone id above them.  A file is
+ * mapped to its node by the major number and the node bits only
+ * (drmSunSameNode()), so every open of a node, not just the first,
+ * finds it.  Majors are dynamic and differ per driver, so there is no
+ * DRM_MAJOR on illumos.
  *
- *	/dev/fbs/gfx0	-> .../display@2:gfx0
- *	/dev/fb		-> .../display@2:gfx0
- *	/dev/fb0	-> fbs/text-0
- *	/dev/fb1 	-> fbs/gfx0
- *	/dev/agp/agpmaster0 -> .../display@2:agpmaster0
- *	/dev/dri/card1	-> .../display@2:controlD0
- *
- * (i916 driver)	/devices/pci@0,0/pci1179,1@0:agptarget
- *	/dev/agp/agptarget0 -> /devices/pci@0,0/pci1179,1@0:agptarget
- *
- * (agpgart driver)	/devices/agpgart:agpgart
- *	/dev/agpgart -> /devices/agpgart:agpgart
+ * Devices.  The link resolves to /devices/<devfs path>:<minor name>.
+ * Nodes with the same devfs path belong to the same device (card and
+ * render node pairing).  The device node itself is read with libdevinfo:
+ * the node is accepted as a DRM node only if the device has a minor of
+ * type DDI_NT_DISPLAY_DRM with the node's dev_t (whatever the device node
+ * is called: VGA-class functions are "display", other functions such as
+ * virtio-gpu (class 0x0380) are "pci1af4,1100" and the like).  A device
+ * whose parent nexus has device_type "pci" or "pciex" is a PCI device:
+ * bus, device and function come from its "reg" (or "assigned-addresses")
+ * property, the IDs from its PCI properties.  A child of the pseudo nexus
+ * (such as rdrmnull) is reported as a DRM_BUS_FAUX device named after its
+ * devfs node ("rdrmnull@0"), as Linux reports vgem and vkms.
  */
 
-#include <string.h>
+#include <dirent.h>
+#include <errno.h>
 #include <fcntl.h>
-#include <fnmatch.h>
+#include <limits.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 #include <libdevinfo.h>
-#include <sys/stat.h>
-#include <sys/ioctl.h>
+#include <sys/ioccom.h>
 #include <sys/mkdev.h>
+#include <sys/param.h>
+#include <sys/stat.h>
 
 #include "xf86drm.h"
+#include "sun_devinfo.h"
 
-struct search_args {
-	char *s_path;
-	int s_minor;
+#ifndef DDI_NT_DISPLAY_DRM
+#define	DDI_NT_DISPLAY_DRM	"ddi_display:drm"
+#endif
+
+#define	SUN_DRM_DIR		"/dev/dri"
+#define	SUN_DEVICES		"/devices"
+
+/* Fields of phys.hi of a PCI "reg" entry (IEEE 1275 PCI binding). */
+#define	SUN_PCI_REG_BUS(hi)	(((hi) >> 16) & 0xff)
+#define	SUN_PCI_REG_DEV(hi)	(((hi) >> 11) & 0x1f)
+#define	SUN_PCI_REG_FUNC(hi)	(((hi) >> 8) & 0x7)
+#define	SUN_PCI_REG_INTS	5	/* ints per "reg" entry */
+
+/* One /dev/dri node. */
+struct sun_node {
+	char	sn_name[32];		/* "card0" */
+	int	sn_type;		/* DRM_NODE_* */
+	dev_t	sn_dev;			/* major, node minor */
+	char	sn_devfs[MAXPATHLEN];	/* "/pci@0,0/pci1af4,1100@10" */
 };
 
-static int _sun_drm_major; /* cache */
-
-/*
- * Search callback function called for each minor node under
- * some device that was found to be of possible interest.
- * Return non-zero if match found.
- */
-static int
-find_minor(di_node_t node, di_minor_t minor, struct search_args *sargs)
+bool
+drmSunSameNode(dev_t a, dev_t b)
 {
-	char	*path;
-	dev_t	devt;
-	int	ret;
-
-	devt = di_minor_devt(minor);
-
-	/* Does the caller want a specific minor number? */
-	if (sargs->s_minor >= 0 &&
-	    sargs->s_minor != minor(devt))
-		return (0);
-
-	/*
-	 * get device minor node path
-	 * Note: allocates path
-	 */
-	if ((path = di_devfs_minor_path(minor)) == NULL)
-		return (0);
-	ret = asprintf(&sargs->s_path, "/devices%s", path);
-	di_devfs_path_free(path);
-
-	if (ret < 0) {
-		free(sargs->s_path);
-		return (0);
-	}
-
-	return (1);
+	return (major(a) == major(b) &&
+	    (minor(a) & DRM_SUN_NODE_MINOR_MASK) ==
+	    (minor(b) & DRM_SUN_NODE_MINOR_MASK));
 }
 
 /*
- * Call back function for di_walk_node, called for every device node.
+ * The node type of a /dev/dri name: card<N>, controlD<N> or renderD<N>
+ * with nothing after the digits.  -1 for anything else.
  */
 static int
-find_dev(di_node_t node, void *vargs)
+sun_name_type(const char *name)
 {
-	struct search_args *sargs = vargs;
-	const char *node_name;
-	di_minor_t minor_node;
+	static const struct {
+		const char	*prefix;
+		int		type;
+	} prefixes[] = {
+		{ "card",	DRM_NODE_PRIMARY },
+		{ "controlD",	DRM_NODE_CONTROL },
+		{ "renderD",	DRM_NODE_RENDER },
+	};
+	size_t i, len;
+	const char *p;
 
-	node_name = di_node_name(node);
-
-	if (strcmp(node_name, "pseudo") == 0)
-		return (DI_WALK_PRUNECHILD);
-
-	/*
-	 * Had: udev_enumerate_add_match_subsystem(e, "drm");
-	 * so skip anything outside "drm".
-	 * For illumos or Solaris, I think we want to skip
-	 * anything that's not named "display".
-	 */
-	if (strcmp(node_name, "display") != 0)
-		return (DI_WALK_CONTINUE);
-
-	/*
-	 * Walk the minor node paths searching...
-	 */
-	minor_node = DI_MINOR_NIL;
-	while ((minor_node = di_minor_next(node, minor_node)) != DI_MINOR_NIL) {
-		if (find_minor(node, minor_node, sargs)) {
-			/* Found it! */
-			return (DI_WALK_TERMINATE);
+	for (i = 0; i < sizeof (prefixes) / sizeof (prefixes[0]); i++) {
+		len = strlen(prefixes[i].prefix);
+		if (strncmp(name, prefixes[i].prefix, len) != 0)
+			continue;
+		p = name + len;
+		if (*p == '\0')
+			return (-1);
+		for (; *p != '\0'; p++) {
+			if (*p < '0' || *p > '9')
+				return (-1);
 		}
+		return (prefixes[i].type);
 	}
-
-	return (DI_WALK_CONTINUE);
+	return (-1);
 }
 
 /*
- * Helper function for xf86drm.c
- *	drmGetMinorNameForFD()
- *	drmParseSubsystemType()
- *	drmParsePciBusInfo()
- *	drmParsePciDeviceInfo()
- *
- * Given a device minor number, find the /devices path.
- * Returns malloc'ed memory at *pathp, caller frees.
+ * Fill in *sn for the /dev/dri entry name: its type, its node dev_t and
+ * the devfs path of its device.  Returns 0 or -errno.
  */
-int
-_sun_drm_find_device(int min, char **pathp)
+static int
+sun_node_read(const char *name, struct sun_node *sn)
 {
-	struct search_args sargs;
-	di_node_t root_node;
+	char path[MAXPATHLEN], real[MAXPATHLEN];
+	struct stat st;
+	char *colon;
+	size_t plen = strlen(SUN_DEVICES);
 
-	root_node = di_init("/", DINFOCPYALL);
-	if (root_node == DI_NODE_NIL)
+	if ((sn->sn_type = sun_name_type(name)) < 0)
+		return (-EINVAL);
+	if (strlcpy(sn->sn_name, name, sizeof (sn->sn_name)) >=
+	    sizeof (sn->sn_name))
+		return (-ENAMETOOLONG);
+	(void) snprintf(path, sizeof (path), "%s/%s", SUN_DRM_DIR, name);
+	if (stat(path, &st) != 0)
 		return (-errno);
+	if (!S_ISCHR(st.st_mode))
+		return (-ENODEV);
+	sn->sn_dev = makedev(major(st.st_rdev),
+	    minor(st.st_rdev) & DRM_SUN_NODE_MINOR_MASK);
 
-	memset(&sargs, 0, sizeof (sargs));
-
-	di_walk_node(root_node, DI_WALK_CLDFIRST, &sargs, find_dev);
-	di_fini(root_node);
-
-	if (sargs.s_path == NULL)
-		return (-ENOENT);
-
-	if (pathp != NULL)
-		*pathp = sargs.s_path;
-	else
-		free(sargs.s_path);
-
+	/* /devices/<devfs path>:<minor name> */
+	if (realpath(path, real) == NULL)
+		return (-errno);
+	if (strncmp(real, SUN_DEVICES "/", plen + 1) != 0)
+		return (-ENODEV);
+	if ((colon = strrchr(real, ':')) == NULL || colon < real + plen)
+		return (-ENODEV);
+	*colon = '\0';
+	if (strlcpy(sn->sn_devfs, real + plen, sizeof (sn->sn_devfs)) >=
+	    sizeof (sn->sn_devfs))
+		return (-ENAMETOOLONG);
 	return (0);
 }
 
 /*
- * Helper function for DRM_MAJOR in xf86drm.c
- * Return the major number assigned to the drm driver.
+ * Find the /dev/dri node that matches: with devfs == NULL the node of
+ * dev (clone bits ignored), otherwise the node of type 'type' of the
+ * device at devfs.  Returns 0 or -errno.
  */
-int
-_sun_drm_get_major(void)
+static int
+sun_node_find(dev_t dev, const char *devfs, int type, struct sun_node *sn)
 {
-	struct stat sbuf;
-	dev_t dev = 0;
-	char *path;
-	int i, ret;
+	struct dirent *de;
+	DIR *dir;
+	int ret = -ENODEV;
 
-	if (_sun_drm_major != 0)
-		return (_sun_drm_major);
+	if ((dir = opendir(SUN_DRM_DIR)) == NULL)
+		return (-errno);
+	while ((de = readdir(dir)) != NULL) {
+		if (sun_name_type(de->d_name) < 0)
+			continue;
+		if (devfs == NULL) {
+			if (sun_node_read(de->d_name, sn) != 0 ||
+			    !drmSunSameNode(sn->sn_dev, dev))
+				continue;
+		} else {
+			if (sun_name_type(de->d_name) != type ||
+			    sun_node_read(de->d_name, sn) != 0 ||
+			    strcmp(sn->sn_devfs, devfs) != 0)
+				continue;
+		}
+		ret = 0;
+		break;
+	}
+	(void) closedir(dir);
+	return (ret);
+}
 
-	for (i = 0; i < DRM_MAX_MINOR; i++) {
-		ret = _sun_drm_find_device(i, &path);
-		if (ret != 0)
+/*
+ * A libdevinfo snapshot of the device of a node: the snapshot is taken
+ * at the device's parent so that the parent's properties are in it.
+ */
+struct sun_devinfo {
+	di_node_t	sd_root;	/* the snapshot (parent node) */
+	di_node_t	sd_node;	/* the device */
+	di_node_t	sd_parent;
+};
+
+static void
+sun_devinfo_fini(struct sun_devinfo *sd)
+{
+	if (sd->sd_root != DI_NODE_NIL)
+		di_fini(sd->sd_root);
+	sd->sd_root = sd->sd_node = sd->sd_parent = DI_NODE_NIL;
+}
+
+/*
+ * Does the device node have a DRM minor node with this dev_t?
+ */
+static bool
+sun_devinfo_has_drm_minor(di_node_t node, dev_t dev)
+{
+	di_minor_t minor = DI_MINOR_NIL;
+	const char *nodetype;
+
+	while ((minor = di_minor_next(node, minor)) != DI_MINOR_NIL) {
+		nodetype = di_minor_nodetype(minor);
+		if (nodetype != NULL &&
+		    strcmp(nodetype, DDI_NT_DISPLAY_DRM) == 0 &&
+		    drmSunSameNode(di_minor_devt(minor), dev))
+			return (true);
+	}
+	return (false);
+}
+
+/*
+ * Look up the node (maj, min) in /dev/dri and its device with libdevinfo.
+ * Succeeds only for DRM nodes (minor node type DDI_NT_DISPLAY_DRM).
+ * Returns 0 or -errno; on success the caller calls sun_devinfo_fini().
+ */
+static int
+sun_devinfo_init(unsigned int maj, unsigned int min, struct sun_node *sn,
+    struct sun_devinfo *sd)
+{
+	char parent[MAXPATHLEN];
+	char *slash, *path;
+	di_node_t child;
+	int ret;
+
+	sd->sd_root = sd->sd_node = sd->sd_parent = DI_NODE_NIL;
+
+	if ((ret = sun_node_find(makedev(maj, min), NULL, -1, sn)) != 0)
+		return (ret);
+
+	(void) strlcpy(parent, sn->sn_devfs, sizeof (parent));
+	if ((slash = strrchr(parent, '/')) == NULL)
+		return (-ENODEV);
+	if (slash == parent)
+		slash[1] = '\0';	/* a child of the root node */
+	else
+		*slash = '\0';
+
+	sd->sd_root = di_init(parent, DINFOSUBTREE | DINFOMINOR | DINFOPROP);
+	if (sd->sd_root == DI_NODE_NIL)
+		return (errno != 0 ? -errno : -ENODEV);
+	sd->sd_parent = sd->sd_root;
+
+	for (child = di_child_node(sd->sd_root); child != DI_NODE_NIL;
+	    child = di_sibling_node(child)) {
+		if ((path = di_devfs_path(child)) == NULL)
 			continue;
-		ret = stat(path, &sbuf);
-		free(path);
-		if (ret != 0)
-			continue;
-		if (!S_ISCHR(sbuf.st_mode))
-			continue;
-		dev = major(sbuf.st_rdev);
-		if (dev != 0) {
-			_sun_drm_major = dev;
-			return (dev);
+		ret = strcmp(path, sn->sn_devfs);
+		di_devfs_path_free(path);
+		if (ret == 0) {
+			sd->sd_node = child;
+			break;
 		}
 	}
-
-	/*
-	 * No devices found?  No way to return errors here,
-	 * so just return an impossible value, and let
-	 * later calls like open fail.
-	 */
-	return (MAXMAJ32);
-}
-
-/*
- * Helper function for drmParseSubsystemType()
- * Returns one of: DRM_BUS_PCI, ... or -EINVAL.
- * Our only driver implementations currently
- * are on PCI.  Others todo.
- */
-int
-_sun_drm_get_subsystem(char *path)
-{
-	char *p;
-	int err;
-
-	p = path;
-	if (strncmp(p, "/devices/", 9) == 0)
-		p += 8;
-	if (strncmp(p, "/pci", 4) == 0)
-		err = DRM_BUS_PCI;
-	else
-		err = -EINVAL;
-
-	return (err);
-}
-
-/*
- * Helper function for drmParsePciBusInfo()
- *
- * Get PCI bus info for the give device path.
- */
-int
-_sun_drm_get_pci_bus_info(char *path, drmPciBusInfo *info)
-{
-	int n, bus, slot, unit;
-
-	/* Skip the /devices prefix, if present. */
-	if (strncmp(path, "/devices/", 9) == 0)
-		path += 8; /* the next slash */
-
-	n = sscanf(path, "/pci@%d,%d/display@%d:",
-	    &bus, &slot, &unit);
-	if (n != 3)
-		return (-EINVAL);
-
-	info->domain = 0;
-	info->bus = bus;
-	info->dev = slot;
-	info->func = unit;
-
+	if (sd->sd_node == DI_NODE_NIL ||
+	    !sun_devinfo_has_drm_minor(sd->sd_node, sn->sn_dev)) {
+		sun_devinfo_fini(sd);
+		return (-ENODEV);
+	}
 	return (0);
 }
 
-/*
- * Helper function for drmParsePciDeviceInfo()
- *
- * Get PCI data for the give device path.
- *
- * Note path given is a full minor under /devices i.e.
- *	/devices/pci@0,0/display@2:drm
- * and libdevinfo wants just:
- *	/pci@0,0/display@2
- */
-int
-_sun_drm_get_pci_dev_info(char *path, drmPciDeviceInfo *pcii)
+bool
+drmSunNodeIsDRM(unsigned int maj, unsigned int min)
 {
-	char pathbuf[MAXPATHLEN];
-	di_node_t node;
-	char *s;
-	int *propval = NULL;
-	int ret = -EINVAL;
+	struct sun_node sn;
+	struct sun_devinfo sd;
 
-	/* Skip the /devices prefix, if present. */
-	if (strncmp(path, "/devices/", 9) == 0)
-		path += 8; /* the next slash */
-	strlcpy(pathbuf, path, sizeof (pathbuf));
+	if (sun_devinfo_init(maj, min, &sn, &sd) != 0)
+		return (false);
+	sun_devinfo_fini(&sd);
+	return (true);
+}
 
-	/* Strip :drm0 or whatever */
-	if ((s = strrchr(pathbuf, ':')) != NULL)
-		*s = '\0';
+int
+drmSunMinorType(unsigned int maj, unsigned int min)
+{
+	struct sun_node sn;
 
-	/*
-	 * Ask libdevinfo about this device
-	 */
-	node = di_init(pathbuf, DINFOCPYALL);
-	if (node == DI_NODE_NIL)
-		return (-EINVAL);
+	if (sun_node_find(makedev(maj, min), NULL, -1, &sn) != 0)
+		return (-1);
+	return (sn.sn_type);
+}
 
-	/*
-	 * Get the various PCI properties.
-	 * Only the first two are required.
-	 */
-	memset(pcii, 0, sizeof (*pcii));
-	if (di_prop_lookup_ints(DDI_DEV_T_ANY, node,
-	    "vendor-id", &propval) > 0)
-		pcii->vendor_id = (uint16_t)*propval;
+/*
+ * The /dev/dri path of the node dev (type < 0), or of the node of the
+ * given type of the same device.  NULL if there is none.
+ */
+char *
+drmSunNodeName(dev_t dev, int type)
+{
+	struct sun_node sn, other;
+	char path[MAXPATHLEN];
+
+	if (sun_node_find(dev, NULL, -1, &sn) != 0)
+		return (NULL);
+	if (type >= 0 && type != sn.sn_type) {
+		if (sun_node_find(0, sn.sn_devfs, type, &other) != 0)
+			return (NULL);
+		sn = other;
+	}
+	(void) snprintf(path, sizeof (path), "%s/%s", SUN_DRM_DIR, sn.sn_name);
+	return (strdup(path));
+}
+
+static bool
+sun_parent_is_pci(di_node_t parent)
+{
+	char *types;
+	int n, i;
+
+	n = di_prop_lookup_strings(DDI_DEV_T_ANY, parent, "device_type",
+	    &types);
+	for (i = 0; i < n; i++) {
+		if (strcmp(types, "pci") == 0 || strcmp(types, "pciex") == 0)
+			return (true);
+		types += strlen(types) + 1;
+	}
+	return (false);
+}
+
+static bool
+sun_parent_is_pseudo(di_node_t parent)
+{
+	const char *name = di_node_name(parent);
+
+	return (name != NULL && strcmp(name, "pseudo") == 0);
+}
+
+int
+drmSunSubsystemType(unsigned int maj, unsigned int min)
+{
+	struct sun_node sn;
+	struct sun_devinfo sd;
+	int ret;
+
+	if ((ret = sun_devinfo_init(maj, min, &sn, &sd)) != 0)
+		return (ret);
+	if (sun_parent_is_pci(sd.sd_parent))
+		ret = DRM_BUS_PCI;
+	else if (sun_parent_is_pseudo(sd.sd_parent))
+		ret = DRM_BUS_FAUX;
 	else
-		goto out;
-
-	if (di_prop_lookup_ints(DDI_DEV_T_ANY, node,
-	    "device-id", &propval) > 0)
-		pcii->device_id = (uint16_t)*propval;
-	else
-		goto out;
-
-	if (di_prop_lookup_ints(DDI_DEV_T_ANY, node,
-	    "subsystem-vendor-id", &propval) > 0)
-		pcii->subvendor_id = (uint16_t)*propval;
-
-	if (di_prop_lookup_ints(DDI_DEV_T_ANY, node,
-	    "subsystem-id", &propval) > 0)
-		pcii->subdevice_id = (uint16_t)*propval;
-
-	if (di_prop_lookup_ints(DDI_DEV_T_ANY, node,
-	    "revision-id", &propval) > 0)
-		pcii->revision_id = (uint16_t)*propval;
-
-	ret = 0;
-out:
-	di_fini(node);
+		ret = -EINVAL;
+	sun_devinfo_fini(&sd);
 	return (ret);
+}
+
+static int
+sun_prop_int(di_node_t node, const char *name, int *valp)
+{
+	int *vals;
+
+	if (di_prop_lookup_ints(DDI_DEV_T_ANY, node, name, &vals) < 1)
+		return (-ENOENT);
+	*valp = vals[0];
+	return (0);
+}
+
+int
+drmSunPciBusInfo(unsigned int maj, unsigned int min, drmPciBusInfoPtr info)
+{
+	struct sun_node sn;
+	struct sun_devinfo sd;
+	int *regs;
+	int n, ret;
+
+	if ((ret = sun_devinfo_init(maj, min, &sn, &sd)) != 0)
+		return (ret);
+	if (!sun_parent_is_pci(sd.sd_parent)) {
+		sun_devinfo_fini(&sd);
+		return (-EINVAL);
+	}
+	n = di_prop_lookup_ints(DDI_DEV_T_ANY, sd.sd_node, "reg", &regs);
+	if (n < SUN_PCI_REG_INTS) {
+		n = di_prop_lookup_ints(DDI_DEV_T_ANY, sd.sd_node,
+		    "assigned-addresses", &regs);
+	}
+	if (n < SUN_PCI_REG_INTS) {
+		sun_devinfo_fini(&sd);
+		return (-ENOENT);
+	}
+	/*
+	 * illumos numbers PCI buses per host bridge without a segment
+	 * (domain) number; like OpenBSD's and DragonFly's libdrm, report
+	 * domain 0.
+	 */
+	info->domain = 0;
+	info->bus = SUN_PCI_REG_BUS((unsigned int)regs[0]);
+	info->dev = SUN_PCI_REG_DEV((unsigned int)regs[0]);
+	info->func = SUN_PCI_REG_FUNC((unsigned int)regs[0]);
+	sun_devinfo_fini(&sd);
+	return (0);
+}
+
+int
+drmSunPciDeviceInfo(unsigned int maj, unsigned int min,
+    drmPciDeviceInfoPtr device)
+{
+	struct sun_node sn;
+	struct sun_devinfo sd;
+	int vendor, dev, val, ret;
+
+	if ((ret = sun_devinfo_init(maj, min, &sn, &sd)) != 0)
+		return (ret);
+	if (!sun_parent_is_pci(sd.sd_parent) ||
+	    sun_prop_int(sd.sd_node, "vendor-id", &vendor) != 0 ||
+	    sun_prop_int(sd.sd_node, "device-id", &dev) != 0) {
+		sun_devinfo_fini(&sd);
+		return (-EINVAL);
+	}
+	(void) memset(device, 0, sizeof (*device));
+	device->vendor_id = (uint16_t)vendor;
+	device->device_id = (uint16_t)dev;
+	if (sun_prop_int(sd.sd_node, "subsystem-vendor-id", &val) == 0)
+		device->subvendor_id = (uint16_t)val;
+	if (sun_prop_int(sd.sd_node, "subsystem-id", &val) == 0)
+		device->subdevice_id = (uint16_t)val;
+	if (sun_prop_int(sd.sd_node, "revision-id", &val) == 0)
+		device->revision_id = (uint8_t)val;
+	sun_devinfo_fini(&sd);
+	return (0);
+}
+
+int
+drmSunFauxBusInfo(unsigned int maj, unsigned int min, char *name, size_t len)
+{
+	struct sun_node sn;
+	struct sun_devinfo sd;
+	const char *base;
+	int ret;
+
+	if ((ret = sun_devinfo_init(maj, min, &sn, &sd)) != 0)
+		return (ret);
+	sun_devinfo_fini(&sd);
+	/* "/pseudo/rdrmnull@0" -> "rdrmnull@0" */
+	base = strrchr(sn.sn_devfs, '/');
+	base = (base == NULL) ? sn.sn_devfs : base + 1;
+	if (*base == '\0')
+		return (-ENOENT);
+	(void) strlcpy(name, base, len);
+	return (0);
 }

@@ -20,8 +20,8 @@ include ../Makefile.cmd
 #
 # Not currently supported: amdgpu nouveau
 
-SUBDIRS = misc1 misc2 util kms modeprint proptest modetest vbltest \
-	kmstest radeon exynos tegra
+SUBDIRS = misc1 misc2 util modeprint proptest modetest vbltest \
+	radeon exynos tegra
 
 ROOTCMDDIR=$(ROOT)/opt/drm-tests
 

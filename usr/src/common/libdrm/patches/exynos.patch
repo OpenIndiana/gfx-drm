@@ -1,26 +1,7 @@
---- libdrm-2.4.109/exynos/exynos_drm.c.orig	2021-11-25 21:33:02.000000000 +0000
-+++ libdrm-2.4.109/exynos/exynos_drm.c	2021-12-28 12:57:52.350690170 +0000
-@@ -31,7 +31,7 @@
- #include <unistd.h>
- 
- #include <sys/mman.h>
--#include <linux/stddef.h>
-+#include <stddef.h>
- 
- #include <xf86drm.h>
- 
---- libdrm-2.4.109/exynos/exynos_fimg2d.c.orig	2021-11-25 21:33:02.000000000 +0000
-+++ libdrm-2.4.109/exynos/exynos_fimg2d.c	2021-12-28 12:57:52.351308656 +0000
-@@ -30,7 +30,7 @@
- #include <assert.h>
- 
- #include <sys/mman.h>
--#include <linux/stddef.h>
-+#include <stddef.h>
- 
- #include <xf86drm.h>
- 
-@@ -693,9 +693,10 @@
+diff ... libdrm-2.4.134/exynos/exynos_fimg2d.c
+--- libdrm-2.4.134-ref/exynos/exynos_fimg2d.c	2026-05-29 10:49:42
++++ libdrm-2.4.134/exynos/exynos_fimg2d.c	2026-09-30 23:08:44
+@@ -692,9 +692,10 @@
  	if (negative)
  		negative = 1;
  
@@ -33,7 +14,7 @@
  		scale = 1;
  		scale_x = g2d_get_scaling(src_w, dst_w);
  		scale_y = g2d_get_scaling(src_h, dst_h);
-@@ -915,9 +916,10 @@
+@@ -914,9 +915,10 @@
  	unsigned int scale, gem_space;
  	unsigned int scale_x, scale_y;
  
@@ -46,14 +27,3 @@
  		scale = 1;
  		scale_x = g2d_get_scaling(src_w, dst_w);
  		scale_y = g2d_get_scaling(src_h, dst_h);
---- libdrm-2.4.109/tests/exynos/exynos_fimg2d_test.c.orig	2021-11-25 21:33:02.000000000 +0000
-+++ libdrm-2.4.109/tests/exynos/exynos_fimg2d_test.c	2021-12-28 12:57:52.351698146 +0000
-@@ -31,7 +31,7 @@
- #include <unistd.h>
- 
- #include <sys/mman.h>
--#include <linux/stddef.h>
-+#include <stddef.h>
- 
- #include <xf86drm.h>
- #include <xf86drmMode.h>

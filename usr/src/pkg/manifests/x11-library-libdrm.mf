@@ -19,8 +19,8 @@ set name=pkg.summary value="DRM Libraries"
 set name=pkg.description value="Direct Rendering Manager (DRM) Libraries"
 set name=info.classification value=System/X11
 set name=info.source-url \
-    value=http://dri.freedesktop.org/libdrm-$(LIBDRM_VERS).tar.xz
-set name=info.upstream-url value=http://dri.freedesktop.org
+    value=https://dri.freedesktop.org/libdrm/libdrm-$(LIBDRM_VERS).tar.xz
+set name=info.upstream-url value=https://dri.freedesktop.org
 #
 dir  path=usr group=sys
 dir  path=usr/include
@@ -39,6 +39,7 @@ file path=usr/include/drm/intel_bufmgr.h
 file path=usr/include/drm/intel_debug.h
 file path=usr/include/drm/mach64_drm.h
 file path=usr/include/drm/mga_drm.h
+file path=usr/include/drm/msm_drm.h
 file path=usr/include/drm/nouveau_drm.h
 file path=usr/include/drm/omap_drmif.h
 file path=usr/include/drm/qxl_drm.h
@@ -58,7 +59,7 @@ file path=usr/include/drm/tegra.h
 file path=usr/include/drm/tegra_drm.h
 file path=usr/include/drm/vc4_drm.h
 file path=usr/include/drm/via_drm.h
-#file path=usr/include/drm/virtgpu_drm.h
+file path=usr/include/drm/virtgpu_drm.h
 file path=usr/include/drm/vmwgfx_drm.h
 dir  path=usr/include/exynos
 file path=usr/include/exynos/exynos_drm.h
@@ -68,7 +69,6 @@ file path=usr/include/freedreno/freedreno_drmif.h
 file path=usr/include/freedreno/freedreno_ringbuffer.h
 #
 link path=usr/include/libdrm target=drm
-file path=usr/include/libkms/libkms.h
 file path=usr/include/libsync.h
 file path=usr/include/omap/omap_drm.h
 file path=usr/include/xf86drm.h
@@ -87,7 +87,6 @@ file path=usr/lib/$(ARCH64)/pkgconfig/libdrm_nouveau.pc
 file path=usr/lib/$(ARCH64)/pkgconfig/libdrm_omap.pc
 file path=usr/lib/$(ARCH64)/pkgconfig/libdrm_radeon.pc
 file path=usr/lib/$(ARCH64)/pkgconfig/libdrm_tegra.pc
-file path=usr/lib/$(ARCH64)/pkgconfig/libkms.pc
 dir  path=usr/lib/xorg
 dir  path=usr/lib/xorg/$(ARCH64)
 link path=usr/lib/xorg/$(ARCH64)/libdrm.so target=libdrm.so.2
@@ -112,8 +111,6 @@ link path=usr/lib/xorg/$(ARCH64)/libdrm_radeon.so target=libdrm_radeon.so.1
 file path=usr/lib/xorg/$(ARCH64)/libdrm_radeon.so.1
 link path=usr/lib/xorg/$(ARCH64)/libdrm_tegra.so target=libdrm_tegra.so.0
 file path=usr/lib/xorg/$(ARCH64)/libdrm_tegra.so.0
-link path=usr/lib/xorg/$(ARCH64)/libkms.so target=libkms.so.1
-file path=usr/lib/xorg/$(ARCH64)/libkms.so.1
 #
 license usr/src/common/libdrm/LICENSE_LIBDRM \
     license=usr/src/common/libdrm/LICENSE_LIBDRM
