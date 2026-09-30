@@ -1,6 +1,6 @@
 diff ... libdrm-2.4.134/xf86drm.c
 --- libdrm-2.4.134-ref/xf86drm.c	2026-05-29 10:49:42
-+++ libdrm-2.4.134/xf86drm.c	2026-09-30 23:20:41
++++ libdrm-2.4.134/xf86drm.c	2026-09-30 23:12:44
 @@ -68,6 +68,14 @@
  #include <sys/pciio.h>
  #endif
@@ -16,7 +16,18 @@ diff ... libdrm-2.4.134/xf86drm.c
  #define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
  
  /* Not all systems have MAP_FAILED defined */
-@@ -964,6 +972,13 @@
+@@ -695,6 +703,10 @@
+     do {
+         ret = ioctl(fd, request, arg);
+     } while (ret == -1 && (errno == EINTR || errno == EAGAIN));
++#if defined(__sun)
++    if (ret == -1 && errno == ENOTTY)
++        ret = drmSunIoctlCompat(fd, request, arg);
++#endif
+     return ret;
+ }
+ 
+@@ -964,6 +976,13 @@
      char buf[DRM_NODE_NAME_MAX];
      const char *dev_name = drmGetDeviceName(type);
  
@@ -30,7 +41,7 @@ diff ... libdrm-2.4.134/xf86drm.c
      if (create)
          return drmOpenDevice(makedev(DRM_MAJOR, minor), minor, type);
  
-@@ -1030,6 +1045,9 @@
+@@ -1030,6 +1049,9 @@
  
  static int drmGetMinorType(int major, int minor)
  {
@@ -40,7 +51,7 @@ diff ... libdrm-2.4.134/xf86drm.c
  #ifdef __FreeBSD__
      char name[SPECNAMELEN];
      int id;
-@@ -1638,7 +1656,11 @@
+@@ -1638,7 +1660,11 @@
      drm_map_t map;
  
      memclear(map);
@@ -52,7 +63,7 @@ diff ... libdrm-2.4.134/xf86drm.c
  
      if(drmIoctl(fd, DRM_IOCTL_RM_MAP, &map))
          return -errno;
-@@ -3295,6 +3317,16 @@
+@@ -3295,6 +3321,16 @@
      min = minor(sbuf.st_rdev);
      nodetype = drmGetMinorType(maj, min);
      return drmGetMinorNameForFD(fd, nodetype);
@@ -69,7 +80,7 @@ diff ... libdrm-2.4.134/xf86drm.c
  #else
      char name[128];
      struct stat sbuf;
-@@ -3340,6 +3372,8 @@
+@@ -3340,6 +3376,8 @@
       * in /dev/drm/ and links in /dev/dri while a WIP in kernel driver creates
       * only device nodes in /dev/dri/ */
      return (!strncmp(name, "drm/", 4) || !strncmp(name, "dri/", 4));
@@ -78,7 +89,7 @@ diff ... libdrm-2.4.134/xf86drm.c
  #else
      return maj == DRM_MAJOR;
  #endif
-@@ -3496,6 +3530,18 @@
+@@ -3496,6 +3534,18 @@
           id + drmGetMinorBase(type));
  
      return strdup(name);
@@ -97,7 +108,7 @@ diff ... libdrm-2.4.134/xf86drm.c
  #else
      struct stat sbuf;
      char buf[PATH_MAX + 1];
-@@ -3641,6 +3687,8 @@
+@@ -3641,6 +3691,8 @@
      return subsystem_type;
  #elif defined(__OpenBSD__) || defined(__DragonFly__) || defined(__FreeBSD__)
      return DRM_BUS_PCI;
@@ -106,7 +117,7 @@ diff ... libdrm-2.4.134/xf86drm.c
  #else
  #warning "Missing implementation of drmParseSubsystemType"
      return -EINVAL;
-@@ -3773,6 +3821,8 @@
+@@ -3773,6 +3825,8 @@
      return 0;
  #elif defined(__FreeBSD__)
      return get_sysctl_pci_bus_info(maj, min, info);
@@ -115,7 +126,7 @@ diff ... libdrm-2.4.134/xf86drm.c
  #else
  #warning "Missing implementation of drmParsePciBusInfo"
      return -EINVAL;
-@@ -3985,6 +4035,9 @@
+@@ -3985,6 +4039,9 @@
      device->revision_id = results[0].pc_revid;
  
      return 0;
@@ -125,7 +136,7 @@ diff ... libdrm-2.4.134/xf86drm.c
  #else
  #warning "Missing implementation of drmParsePciDeviceInfo"
      return -EINVAL;
-@@ -4485,6 +4538,8 @@
+@@ -4485,6 +4542,8 @@
      fullname[DRM_FAUX_DEVICE_NAME_LEN - 1] = '\0';
  
      return 0;
@@ -134,23 +145,23 @@ diff ... libdrm-2.4.134/xf86drm.c
  #else
  #warning "Missing implementation of drmParseFauxBusInfo"
      return -EINVAL;
-@@ -4617,9 +4672,15 @@
+@@ -4617,9 +4676,15 @@
  
      for (int i = 0; i < DRM_NODE_MAX; i++) {
          if (device->available_nodes & 1 << i) {
 +#if defined(__sun)
-+            if (stat(device->nodes[i], &sbuf) == 0 &&
+             if (stat(device->nodes[i], &sbuf) == 0 &&
 +                drmSunSameNode(sbuf.st_rdev, find_rdev))
 +                return true;
 +#else
-             if (stat(device->nodes[i], &sbuf) == 0 &&
++            if (stat(device->nodes[i], &sbuf) == 0 &&
                  sbuf.st_rdev == find_rdev)
                  return true;
 +#endif
          }
      }
      return false;
-@@ -4941,6 +5002,17 @@
+@@ -4941,6 +5006,17 @@
      return strdup(path);
  #elif defined(__FreeBSD__)
      return drmGetDeviceNameFromFd(fd);

@@ -54,6 +54,7 @@ DRM_SUN_HIDDEN extern int drmSunPciDeviceInfo(unsigned int, unsigned int,
     drmPciDeviceInfoPtr);
 DRM_SUN_HIDDEN extern int drmSunFauxBusInfo(unsigned int, unsigned int,
     char *, size_t);
+DRM_SUN_HIDDEN extern int drmSunIoctlCompat(int, unsigned long, void *);
 
 #ifdef __cplusplus
 }

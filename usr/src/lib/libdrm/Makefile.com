@@ -31,7 +31,7 @@ VERS=		.2
 # See common/libdrm/libdrm-*/meson.build libdrm_files
 OBJECTS=	xf86drm.o xf86drmHash.o \
 	xf86drmRandom.o xf86drmSL.o xf86drmMode.o \
-	sun_devinfo.o
+	sun_devinfo.o sun_ioctl.o
 
 include ../../Makefile.lib
 include $(SRC)/common/libdrm/Makefile.drm
