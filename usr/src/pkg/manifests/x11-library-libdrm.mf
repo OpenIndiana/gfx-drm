@@ -114,4 +114,4 @@ file path=usr/lib/xorg/$(ARCH64)/libdrm_tegra.so.0
 #
 license usr/src/common/libdrm/LICENSE_LIBDRM \
     license=usr/src/common/libdrm/LICENSE_LIBDRM
-depend type=require fmri=pkg:/driver/graphics/drm
+depend type=require fmri=pkg:/driver/graphics/drm-devlink

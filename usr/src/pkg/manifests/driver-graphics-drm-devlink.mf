@@ -1,0 +1,41 @@
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# http://www.illumos.org/license/CDDL.
+#
+
+#
+# Copyright 2026 Till Wegmueller
+#
+
+#
+# The devfsadm link module for DRM and AGP device nodes: /dev/dri/<minor>
+# for minor nodes of type ddi_display:drm, /dev/agpgart and /dev/agp/* for
+# the ddi_agp node types.  libdrm finds DRM devices through these links
+# whichever kernel driver creates the nodes, so x11/library/libdrm requires
+# this package rather than one kernel driver package.
+#
+# Until this package existed, driver/graphics/drm delivered the module.
+# The optional dependency makes an installed driver/graphics/drm move to a
+# version that no longer delivers it.
+#
+<include global_zone_only_component>
+set name=pkg.fmri value=pkg:/driver/graphics/drm-devlink@$(PKGVERS)
+set name=pkg.summary value="DRM and AGP device links"
+set name=pkg.description \
+    value="devfsadm link module creating the /dev/dri and /dev/agp links for DRM and AGP device nodes"
+set name=info.classification value=org.opensolaris.category.2008:Drivers/Display
+set name=variant.arch value=i386
+dir  path=usr group=sys
+dir  path=usr/lib
+dir  path=usr/lib/devfsadm group=sys
+dir  path=usr/lib/devfsadm/linkmod group=sys
+file path=usr/lib/devfsadm/linkmod/SUNW_drm_link_i386.so group=sys mode=0755
+license cr_Sun license=cr_Sun
+license lic_CDDL license=lic_CDDL
+depend type=optional fmri=pkg:/driver/graphics/drm@$(PKGVERS)
