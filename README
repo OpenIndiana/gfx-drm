@@ -39,7 +39,6 @@ The user-level libraries are:
 
 	usr/src/lib/libdrm/		DRM driver
 	usr/src/lib/libdrm_*		H/W-specific DRM support
-	usr/src/lib/libkms		Kernel Mode Setting support
 
 Note that the source for those libraries is EXTERNAL, and
 NOT checked into this gate.  At build time, the library
@@ -47,6 +46,9 @@ sources are downloaded from:
 	http://dri.freedesktop.org/libdrm/
 and then unpacked and patched under:
 	usr/src/common/libdrm/
+usr/src/common/libdrm/README.illumos describes the libdrm version,
+the illumos patches, how libdrm finds DRM devices on illumos, and
+which ioctls the kernels implement.
 
 That makes this gate a little unusual, sort of a "hybrid"
 between how illumos-gate does things and how the "userland"

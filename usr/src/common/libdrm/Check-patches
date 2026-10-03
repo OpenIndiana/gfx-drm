@@ -52,8 +52,8 @@
 # One big patch might be easier than all this...
 # but for now the patches are split up as shown below.
 
-ref=libdrm-2.4.109-ref
-dir=libdrm-2.4.109
+ref=libdrm-2.4.134-ref
+dir=libdrm-2.4.134
 
 # You make this directory by hand.  Not doing this automatically
 # because I want to make srue you to know it's being written into.
@@ -74,20 +74,14 @@ done
 
 
 
-echo patches/etnaviv.patch
-diff_ref etnaviv -name '*.[ch]' > $chk/etnaviv.patch
-
 echo patches/exynos.patch
 diff_ref exynos tests/exynos -name '*.[ch]' > $chk/exynos.patch
-
-echo patches/freedreno.patch
-diff_ref freedreno -name '*.c' > $chk/freedreno.patch
 
 echo patches/intel-drm.patch
 diff_ref intel -name '*.c' > $chk/intel-drm.patch
 
-echo patches/omap.patch
-diff_ref omap -name '*.c' > $chk/omap.patch
+echo patches/modesetting.patch
+diff_ref xf86drmMode.c > $chk/modesetting.patch
 
 echo patches/pkgconfig-in.patch
 diff_ref . -name '*.pc.in' > $chk/pkgconfig-in.patch
@@ -100,18 +94,8 @@ echo patches/incl-drm-i915-drm-h.patch
 ( head -27 patches/incl-drm-i915-drm-h.patch ;
   diff_ref include/drm/i915_drm.h ) > $chk/incl-drm-i915-drm-h.patch
 
-echo patches/libdrm-lists-h.patch
-diff_ref libdrm_lists.h > $chk/libdrm-lists-h.patch
-
-echo patches/util-double-list-h.patch
-diff_ref util_double_list.h > $chk/util-double-list-h.patch
-
 echo patches/xf86drm-c.patch
 diff_ref xf86drm.c > $chk/xf86drm-c.patch
-
-echo patches/xf86drm-h.patch
-( head -27 patches/xf86drm-h.patch ;
-  diff_ref xf86drm.h ) > $chk/xf86drm-h.patch
 
 
 diff -r patches $chk

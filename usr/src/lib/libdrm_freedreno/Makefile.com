@@ -28,7 +28,7 @@
 LIBRARY=	libdrm_freedreno.a
 VERS=		.1
 
-# See common/libdrm/libdrm-*/freedreno/Makefile.in am__objects
+# See common/libdrm/libdrm-*/freedreno/meson.build
 OBJS_TOP= \
 	freedreno_device.o freedreno_pipe.o \
 	freedreno_ringbuffer.o freedreno_bo.o freedreno_bo_cache.o

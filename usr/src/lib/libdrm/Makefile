@@ -52,6 +52,7 @@ DRM_HDRS= \
 	amdgpu_drm.h \
 	mach64_drm.h \
 	mga_drm.h \
+	msm_drm.h \
 	nouveau_drm.h \
 	qxl_drm.h \
 	r128_drm.h \
@@ -61,6 +62,7 @@ DRM_HDRS= \
 	tegra_drm.h \
 	vc4_drm.h \
 	via_drm.h \
+	virtgpu_drm.h \
 	vmwgfx_drm.h
 
 ROOT_DRM_HDRS=	$(DRM_HDRS:%=$(ROOTHDRDIR)/drm/%)

@@ -1,11 +1,12 @@
---- libdrm-2.4.109/xf86drmMode.c.orig
-+++ libdrm-2.4.109/xf86drmMode.c
-@@ -960,6 +960,8 @@
+diff ... libdrm-2.4.134/xf86drmMode.c
+--- libdrm-2.4.134-ref/xf86drmMode.c	2026-05-29 10:49:42
++++ libdrm-2.4.134/xf86drmMode.c	2026-09-30 23:08:26
+@@ -992,6 +992,8 @@
+ 	}
  
  	drmClose(fd);
- 	return 0;
-+#elif defined(__illumos__)
 +	return 0;
++#elif defined(__illumos__)
+ 	return 0;
  #endif
  	return -ENOSYS;
- }

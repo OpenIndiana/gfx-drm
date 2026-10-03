@@ -28,7 +28,7 @@
 LIBRARY=	libdrm_exynos.a
 VERS=		.1
 
-# See common/libdrm/libdrm-*/exynos/Makefile.in am__objects
+# See common/libdrm/libdrm-*/exynos/meson.build
 OBJECTS= \
 	exynos_drm.o exynos_fimg2d.o
 

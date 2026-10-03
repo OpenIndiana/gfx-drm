@@ -25,9 +25,10 @@
 # or other dealings in this Software without prior written authorization
 # of the copyright holder.
 
---- libdrm-2.4.109/include/drm/i915_drm.h.orig	2021-11-25 21:33:02.000000000 +0000
-+++ libdrm-2.4.109/include/drm/i915_drm.h	2021-12-28 13:56:31.703875110 +0000
-@@ -208,6 +208,7 @@
+diff ... libdrm-2.4.134/include/drm/i915_drm.h
+--- libdrm-2.4.134-ref/include/drm/i915_drm.h	2026-05-29 10:49:42
++++ libdrm-2.4.134/include/drm/i915_drm.h	2026-09-30 23:14:40
+@@ -332,6 +332,7 @@
  	int pf_current_page;	/* which buffer is being displayed? */
  	int perf_boxes;		/* performance boxes to be displayed */
  	int width, height;      /* screen size in pixels */
@@ -35,7 +36,7 @@
  
  	drm_handle_t front_handle;
  	int front_offset;
-@@ -247,6 +248,8 @@
+@@ -371,6 +372,8 @@
  	int pipeB_w;
  	int pipeB_h;
  
@@ -44,15 +45,16 @@
  	/* fill out some space for old userspace triple buffer */
  	drm_handle_t unused_handle;
  	__u32 unused1, unused2, unused3;
-@@ -349,11 +352,14 @@
+@@ -476,11 +479,14 @@
  #define DRM_IOCTL_I915_FLUSH		DRM_IO ( DRM_COMMAND_BASE + DRM_I915_FLUSH)
  #define DRM_IOCTL_I915_FLIP		DRM_IO ( DRM_COMMAND_BASE + DRM_I915_FLIP)
  #define DRM_IOCTL_I915_BATCHBUFFER	DRM_IOW( DRM_COMMAND_BASE + DRM_I915_BATCHBUFFER, drm_i915_batchbuffer_t)
 -#define DRM_IOCTL_I915_IRQ_EMIT         DRM_IOWR(DRM_COMMAND_BASE + DRM_I915_IRQ_EMIT, drm_i915_irq_emit_t)
+-#define DRM_IOCTL_I915_IRQ_WAIT         DRM_IOW( DRM_COMMAND_BASE + DRM_I915_IRQ_WAIT, drm_i915_irq_wait_t)
+-#define DRM_IOCTL_I915_GETPARAM         DRM_IOWR(DRM_COMMAND_BASE + DRM_I915_GETPARAM, drm_i915_getparam_t)
 +/* I915_IRQ_EMIT is IOW not IOWR because it does its own copyout. */
 +#define DRM_IOCTL_I915_IRQ_EMIT         DRM_IOW( DRM_COMMAND_BASE + DRM_I915_IRQ_EMIT, drm_i915_irq_emit_t)
- #define DRM_IOCTL_I915_IRQ_WAIT         DRM_IOW( DRM_COMMAND_BASE + DRM_I915_IRQ_WAIT, drm_i915_irq_wait_t)
--#define DRM_IOCTL_I915_GETPARAM         DRM_IOWR(DRM_COMMAND_BASE + DRM_I915_GETPARAM, drm_i915_getparam_t)
++#define DRM_IOCTL_I915_IRQ_WAIT         DRM_IOW( DRM_COMMAND_BASE + DRM_I915_IRQ_WAIT, drm_i915_irq_wait_t)
 +/* I915_GETPARAM is IOW not IOWR because it does its own copyout. */
 +#define DRM_IOCTL_I915_GETPARAM         DRM_IOW( DRM_COMMAND_BASE + DRM_I915_GETPARAM, drm_i915_getparam_t)
  #define DRM_IOCTL_I915_SETPARAM         DRM_IOW( DRM_COMMAND_BASE + DRM_I915_SETPARAM, drm_i915_setparam_t)
@@ -62,7 +64,7 @@
  #define DRM_IOCTL_I915_FREE             DRM_IOW( DRM_COMMAND_BASE + DRM_I915_FREE, drm_i915_mem_free_t)
  #define DRM_IOCTL_I915_INIT_HEAP        DRM_IOW( DRM_COMMAND_BASE + DRM_I915_INIT_HEAP, drm_i915_mem_init_heap_t)
  #define DRM_IOCTL_I915_CMDBUFFER	DRM_IOW( DRM_COMMAND_BASE + DRM_I915_CMDBUFFER, drm_i915_cmdbuffer_t)
-@@ -416,6 +422,15 @@
+@@ -547,6 +553,15 @@
  	struct drm_clip_rect *cliprects;	/* pointer to userspace cliprects */
  } drm_i915_batchbuffer_t;
  
@@ -78,10 +80,11 @@
  /* As above, but pass a pointer to userspace buffer which can be
   * validated by the kernel prior to sending to hardware.
   */
-@@ -428,12 +443,25 @@
+@@ -558,6 +573,15 @@
+ 	int num_cliprects;	/* mulitpass with multiple cliprects? */
  	struct drm_clip_rect *cliprects;	/* pointer to userspace cliprects */
  } drm_i915_cmdbuffer_t;
- 
++
 +typedef struct drm_i915_cmdbuffer32 {
 +	caddr32_t buf;	/* pointer to userspace command buffer */
 +	int sz;			/* nr bytes in buf */
@@ -90,10 +93,10 @@
 +	int num_cliprects;	/* mulitpass with multiple cliprects? */
 +	caddr32_t cliprects;	/* pointer to userspace cliprects */
 +} drm_i915_cmdbuffer32_t;
-+
+ 
  /* Userspace can request & wait on irq's:
   */
- typedef struct drm_i915_irq_emit {
+@@ -565,6 +589,10 @@
  	int *irq_seq;
  } drm_i915_irq_emit_t;
  
@@ -104,29 +107,29 @@
  typedef struct drm_i915_irq_wait {
  	int irq_seq;
  } drm_i915_irq_wait_t;
-@@ -597,6 +625,11 @@
- 	int *value;
- } drm_i915_getparam_t;
- 
+@@ -772,6 +800,11 @@
+  * See struct drm_i915_getparam.
+  */
+ typedef struct drm_i915_getparam drm_i915_getparam_t;
++
 +typedef struct drm_i915_getparam32 {
 +	int param;
 +	caddr32_t value;
 +} drm_i915_getparam32_t;
-+
+ 
  /* Ioctl to set kernel params:
   */
- #define I915_SETPARAM_USE_MI_BATCHBUFFER_START            1
-@@ -621,6 +654,13 @@
+@@ -796,6 +829,13 @@
+ 	int size;
  	int *region_offset;	/* offset from start of fb or agp */
  } drm_i915_mem_alloc_t;
- 
++
 +typedef struct drm_i915_mem_alloc32 {
 +	int region;
 +	int alignment;
 +	int size;
 +	caddr32_t region_offset;	/* offset from start of fb or agp */
 +} drm_i915_mem_alloc32_t;
-+
+ 
  typedef struct drm_i915_mem_free {
  	int region;
- 	int region_offset;

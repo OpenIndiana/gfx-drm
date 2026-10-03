@@ -25,9 +25,8 @@ SRCDIR= $(LIBDRM_CMN_DIR)/tests/exynos
 
 CPPFLAGS +=	-I$(SRCDIR)
 CPPFLAGS +=	-I$(LIBDRM_CMN_DIR)/exynos
-CPPFLAGS +=	-I$(LIBDRM_CMN_DIR)/libkms
 
-LDLIBS	 +=	-lkms -ldrm -ldrm_exynos -lm
+LDLIBS	 +=	-ldrm -ldrm_exynos -lm
 
 LDLIBS32 +=	-L$(ROOT)/usr/lib/xorg \
 		-R/usr/lib/xorg
