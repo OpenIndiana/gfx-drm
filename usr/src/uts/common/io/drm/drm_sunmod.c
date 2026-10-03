@@ -870,10 +870,66 @@ static struct modlinkage modlinkage = {
 	MODREV_1, { (void *)&modlmisc, NULL }
 };
 
+/*
+ * misc/drm_core is the core of another DRM driver stack that can be
+ * installed beside this one.  The two cores must never be loaded at the
+ * same time: misc/drm_core refuses to load while this module is loaded,
+ * and this module refuses to load while misc/drm_core is.
+ *
+ * The DDI cannot tell whether a module is loaded without loading it
+ * (ddi_modopen(9F) loads it), so walk the module list under mod_lock, as
+ * mod_name_to_modid() does, and compare the module name, which is the
+ * same whatever path loaded the module.  No hold is taken: a hold waits
+ * for a module that is busy, as a module is during its _init(), so two
+ * modules holding each other from their _init() could deadlock; the walk
+ * waits only for mod_lock, which the module framework does not hold while
+ * it calls _init() or waits for a busy module.
+ *
+ * The other core counts as loaded when it is installed (its _init()
+ * succeeded and its _fini() has not), or when it is in memory and held
+ * busy, as it is while its _init() or its _fini() runs.  A core that is
+ * in memory but neither installed nor busy does not count: a dependency
+ * whose _init() failed stays in memory that way (mod_install_requisites()
+ * does not unload it, and modunload cannot), and it must not keep the
+ * other core out.  mod_busy changes under mod_lock, and mod_installed is
+ * set before the module is released, so the walk sees an installing
+ * module either busy or installed.  Each core is in memory and busy
+ * before its _init() runs this check, and both checks hold mod_lock, so
+ * the check that takes it second sees the other core loading or
+ * installed: of two cores loading at the same time at least one refuses.
+ */
+static boolean_t
+drm_other_core_loaded(void)
+{
+	struct modctl *mp;
+	boolean_t loaded = B_FALSE;
+
+	mutex_enter(&mod_lock);
+	mp = &modules;
+	do {
+		if (mp->mod_modname != NULL &&
+		    strcmp(mp->mod_modname, "drm_core") == 0) {
+			loaded = (mp->mod_installed != 0 ||
+			    (mp->mod_loaded != 0 && mp->mod_busy != 0));
+			break;
+		}
+	} while ((mp = mp->mod_next) != &modules);
+	mutex_exit(&mod_lock);
+
+	return (loaded);
+}
+
 int
 _init(void)
 {
 	int ret;
+
+	if (drm_other_core_loaded()) {
+		cmn_err(CE_WARN, "drm: the DRM core misc/drm_core is loaded; "
+		    "misc/drm does not load beside it (unload misc/drm_core "
+		    "and its drivers first)");
+		return (EBUSY);
+	}
 
 	ret = mod_install(&modlinkage);
 	if (ret)
