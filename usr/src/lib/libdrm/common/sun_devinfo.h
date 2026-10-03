@@ -33,7 +33,7 @@ extern "C" {
 #endif
 
 /*
- * The DRM drivers of illumos (gfx-drm's drm module and the Rust DRM core)
+ * The DRM drivers of illumos (gfx-drm's drm module and newer drivers)
  * clone every open: the low nine bits of the minor number name the node
  * (card<N>, controlD<N>, renderD<128+N>), the bits above hold the clone id
  * of the open file.  Only the node bits identify a /dev/dri node.

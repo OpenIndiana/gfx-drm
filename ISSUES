@@ -27,7 +27,7 @@ Open:
    are those of Linux 6.x; see README.illumos for what it implements.
 
 4. Kernels that know only the libdrm 2.4.109 size of a grown core
-   argument structure (the sync object handle and wait ioctls; the Rust
-   DRM core of R0 to R4) are served by a retry in drmIoctl()
+   argument structure (the sync object handle and wait ioctls) are
+   served by a retry in drmIoctl()
    (lib/libdrm/common/sun_ioctl.c).  Such a kernel should accept every
    size, as Linux's drm_ioctl() does.

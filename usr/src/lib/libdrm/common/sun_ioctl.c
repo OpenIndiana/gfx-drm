@@ -21,12 +21,12 @@
  * bits), so a grown structure has a new command number.  Linux's
  * drm_ioctl() accepts every size of a command and zero-extends or
  * truncates the argument; a kernel that only knows the older size answers
- * the new number with ENOTTY on illumos.  The Rust DRM core of R0 to R4
- * (whose uAPI was generated from the libdrm 2.4.109 headers) is such a
- * kernel.  When a command below fails with ENOTTY and the fields added
- * after the older size are all zero, which is what every libdrm wrapper
- * sends, the call is repeated with the older size: the kernel then sees
- * exactly the request it knows, as Linux would have truncated it.
+ * the new number with ENOTTY on illumos, for example a driver whose uAPI
+ * was generated from the libdrm 2.4.109 headers.  When a command below
+ * fails with ENOTTY and the fields added after the older size are all
+ * zero, which is what every libdrm wrapper sends, the call is repeated
+ * with the older size: the kernel then sees exactly the request it knows,
+ * as Linux would have truncated it.
  * Arguments that use the new fields are not retried.
  *
  * The gfx-drm kernel (drm, i915) implements none of these commands.

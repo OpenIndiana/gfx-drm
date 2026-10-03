@@ -8,9 +8,7 @@ usr/src/lib/libdrm/common.  It serves two kernels:
 
  - gfx-drm's own drm and i915 modules (usr/src/uts), Intel gen2 to gen7.5
    at the level of Linux 3.12;
- - the Rust DRM core of illumos-drm (https://code.aopc.cloud/illumos/
-   illumos-drm) with its drivers rdrmnull and virtio_gpu, milestones R0
-   to R4.
+ - newer DRM kernel drivers that provide card and render nodes.
 
 
 Version
@@ -81,7 +79,7 @@ bus" from sysfs.  On illumos:
    minor number:
 
 	kernel		minor name	link		node minor
-	Rust core	card<N>		card<N>		N
+	newer drivers	card<N>		card<N>		N
 			renderD<128+N>	renderD<128+N>	128 + N
 	gfx-drm		drm<N>		card<N>		N
 			controlD<N>	controlD<N>	64 + N
@@ -100,9 +98,9 @@ bus" from sysfs.  On illumos:
    "pci" or "pciex", the device is DRM_BUS_PCI: bus, device and function
    from its "reg" (or "assigned-addresses") property, vendor, device,
    subsystem and revision from its PCI properties; the PCI domain is 0.  A
-   child of the pseudo nexus (rdrmnull) is DRM_BUS_FAUX, named after its
-   devfs node ("rdrmnull@0"), as Linux reports vgem and vkms.  Other
-   buses are not enumerated.
+   child of the pseudo nexus (a driver without hardware) is DRM_BUS_FAUX,
+   named after its devfs node ("<driver>@0"), as Linux reports vgem and
+   vkms.  Other buses are not enumerated.
 
 xf86drm.c uses this for drmGetDevices2, drmGetDevice2 (and
 drmGetDeviceFromDevId), drmGetNodeTypeFromFd, drmGetDeviceNameFromFd,
@@ -126,11 +124,12 @@ Four core structures grew since libdrm 2.4.109, so their commands have new
 numbers: drm_syncobj_handle (16 -> 24 bytes, SYNCOBJ_HANDLE_TO_FD and
 SYNCOBJ_FD_TO_HANDLE), drm_syncobj_wait (32 -> 40, SYNCOBJ_WAIT) and
 drm_syncobj_timeline_wait (40 -> 48, SYNCOBJ_TIMELINE_WAIT).  Linux's
-drm_ioctl() accepts every size; the Rust core of R0 to R4 matches the
-whole command value and knows only the 2.4.109 sizes.  drmIoctl() therefore
+drm_ioctl() accepts every size; a kernel that matches the whole command
+value and knows only the 2.4.109 sizes answers ENOTTY.  drmIoctl() therefore
 retries such a command with the older size when the kernel answers ENOTTY
-and the added fields are zero (sun_ioctl.c).  virtio_gpu accepts all sizes
-of its grown commands itself (EXECBUFFER 32/40/64 bytes, TRANSFER_* 36/44).
+and the added fields are zero (sun_ioctl.c).  The virtgpu commands
+EXECBUFFER (32/40/64 bytes) and TRANSFER_* (36/44) grew as well; a
+virtio-gpu driver has to accept all their sizes itself.
 No drm_mode.h or i915_drm.h structure changed size.
 
 
@@ -147,38 +146,7 @@ more than either kernel implements; a constant in a header does not mean
 the running kernel supports it.  Ask the kernel (DRM_IOCTL_GET_CAP,
 DRM_IOCTL_VERSION, driver GETPARAMs) instead.
 
-What the kernels implement:
-
-  Rust DRM core, R0 to R4 (illumos-drm):
-    core      VERSION, GET_CAP, SET_CLIENT_CAP, GET_UNIQUE, SET_UNIQUE,
-              SET_VERSION, GET_MAGIC, AUTH_MAGIC, GET_CLIENT, SET_MASTER,
-              DROP_MASTER
-    GEM       GEM_CLOSE, GEM_FLINK, GEM_OPEN, MODE_CREATE_DUMB,
-              MODE_MAP_DUMB, MODE_DESTROY_DUMB
-    R2        PRIME_HANDLE_TO_FD, PRIME_FD_TO_HANDLE, SYNCOBJ_CREATE,
-              SYNCOBJ_DESTROY, SYNCOBJ_HANDLE_TO_FD, SYNCOBJ_FD_TO_HANDLE,
-              SYNCOBJ_WAIT, SYNCOBJ_RESET, SYNCOBJ_SIGNAL,
-              SYNCOBJ_TIMELINE_WAIT, SYNCOBJ_QUERY, SYNCOBJ_TRANSFER,
-              SYNCOBJ_TIMELINE_SIGNAL (2.4.109 argument sizes, see above);
-              sync files (SYNC_IOC_MERGE, SYNC_IOC_FILE_INFO) and
-              DMA_BUF_IOCTL_SYNC on the file descriptors it makes
-    R3 (KMS)  MODE_GETRESOURCES, MODE_GETPLANERESOURCES, MODE_GETCRTC,
-              MODE_SETCRTC, MODE_GETPLANE, MODE_SETPLANE, MODE_CURSOR,
-              MODE_CURSOR2, MODE_GETGAMMA, MODE_SETGAMMA, MODE_GETENCODER,
-              MODE_GETCONNECTOR, MODE_ATTACHMODE, MODE_DETACHMODE,
-              MODE_GETPROPERTY, MODE_SETPROPERTY, MODE_GETPROPBLOB,
-              MODE_CREATEPROPBLOB, MODE_DESTROYPROPBLOB, MODE_GETFB,
-              MODE_GETFB2, MODE_ADDFB, MODE_ADDFB2, MODE_RMFB,
-              MODE_PAGE_FLIP, MODE_DIRTYFB, MODE_OBJ_GETPROPERTIES,
-              MODE_OBJ_SETPROPERTY, MODE_ATOMIC, WAIT_VBLANK,
-              MODESET_CTL, CRTC_GET_SEQUENCE, CRTC_QUEUE_SEQUENCE
-    R4        virtio_gpu: VIRTGPU_MAP, EXECBUFFER, GETPARAM,
-              RESOURCE_CREATE, RESOURCE_INFO, TRANSFER_FROM_HOST,
-              TRANSFER_TO_HOST, WAIT, GET_CAPS, RESOURCE_CREATE_BLOB,
-              CONTEXT_INIT (Linux 6.12 uAPI)
-    Not: the legacy (DRI1) ioctls, leases, GEM_CHANGE_HANDLE,
-    SYNCOBJ_EVENTFD, SET_CLIENT_NAME, MODE_CLOSEFB; render nodes answer
-    only the render-allowed ioctls, as on Linux.
+What the gfx-drm kernel implements:
 
   gfx-drm drm + i915 (usr/src/uts):
     core      VERSION, GET_UNIQUE, GET_MAGIC, IRQ_BUSID, GET_MAP,
@@ -209,5 +177,4 @@ What the kernels implement:
               OVERLAY_ATTRS, SET_SPRITE_COLORKEY, GET_SPRITE_COLORKEY,
               GEM_WAIT, GEM_CONTEXT_CREATE, GEM_CONTEXT_DESTROY, REG_READ
     Not: render nodes, PRIME, sync objects, SET_CLIENT_CAP, atomic,
-    GETFB2, the i915 ioctls after Linux 3.12 (see notes on Mesa crocus
-    and iris requirements).
+    GETFB2, the i915 ioctls after Linux 3.12.

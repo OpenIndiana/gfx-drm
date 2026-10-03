@@ -24,8 +24,8 @@
  * /dev/dri, using the minor name:
  *
  *	driver			minor name	/dev/dri link	node minor
- *	Rust DRM core		card<N>		card<N>		N
- *	(rdrmnull, virtio_gpu)	renderD<128+N>	renderD<128+N>	128 + N
+ *	newer drivers		card<N>		card<N>		N
+ *				renderD<128+N>	renderD<128+N>	128 + N
  *	gfx-drm drm/i915	drm<N>		card<N>		N
  *				controlD<N>	controlD<N>	64 + N
  *
@@ -34,13 +34,12 @@
  * name (card, controlD, renderD), never from its minor number, whose
  * layout differs between the two kernels.
  *
- * Open files.  Both kernels clone every open (drm_sun_open() in gfx-drm,
- * CharDevice::clone_open in the Rust core): the file's dev_t carries the
- * node minor in its low nine bits and a clone id above them.  A file is
- * mapped to its node by the major number and the node bits only
- * (drmSunSameNode()), so every open of a node, not just the first,
- * finds it.  Majors are dynamic and differ per driver, so there is no
- * DRM_MAJOR on illumos.
+ * Open files.  Both kinds of driver clone every open (drm_sun_open() in
+ * gfx-drm): the file's dev_t carries the node minor in its low nine bits
+ * and a clone id above them.  A file is mapped to its node by the major
+ * number and the node bits only (drmSunSameNode()), so every open of a
+ * node, not just the first, finds it.  Majors are dynamic and differ per
+ * driver, so there is no DRM_MAJOR on illumos.
  *
  * Devices.  The link resolves to /devices/<devfs path>:<minor name>.
  * Nodes with the same devfs path belong to the same device (card and
@@ -52,8 +51,8 @@
  * whose parent nexus has device_type "pci" or "pciex" is a PCI device:
  * bus, device and function come from its "reg" (or "assigned-addresses")
  * property, the IDs from its PCI properties.  A child of the pseudo nexus
- * (such as rdrmnull) is reported as a DRM_BUS_FAUX device named after its
- * devfs node ("rdrmnull@0"), as Linux reports vgem and vkms.
+ * (a driver without hardware) is reported as a DRM_BUS_FAUX device named
+ * after its devfs node ("<driver>@0"), as Linux reports vgem and vkms.
  */
 
 #include <dirent.h>
@@ -470,7 +469,7 @@ drmSunFauxBusInfo(unsigned int maj, unsigned int min, char *name, size_t len)
 	if ((ret = sun_devinfo_init(maj, min, &sn, &sd)) != 0)
 		return (ret);
 	sun_devinfo_fini(&sd);
-	/* "/pseudo/rdrmnull@0" -> "rdrmnull@0" */
+	/* "/pseudo/<driver>@0" -> "<driver>@0" */
 	base = strrchr(sn.sn_devfs, '/');
 	base = (base == NULL) ? sn.sn_devfs : base + 1;
 	if (*base == '\0')
