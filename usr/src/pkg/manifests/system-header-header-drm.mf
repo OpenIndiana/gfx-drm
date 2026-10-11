@@ -38,5 +38,6 @@ file path=usr/include/drm/drm_mode.h
 file path=usr/include/drm/drm_os_solaris.h
 file path=usr/include/drm/drm_sarea.h
 file path=usr/include/drm/i915_drm.h
+file path=usr/include/drm/virtgpu_drm.h
 license usr/src/uts/common/io/drm/LICENSE_DRM \
     license=usr/src/uts/common/io/drm/LICENSE_DRM

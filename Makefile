@@ -43,4 +43,7 @@ package: FRC
 	/usr/bin/ksh93 tools/bldenv myenv.sh \
 	"cd usr/src/pkg ; $(MAKE) install"
 
+upstream-sync: FRC
+	@/usr/bin/ksh93 tools/upstream-sync.sh "$(LINUX_SRC)"
+
 FRC:

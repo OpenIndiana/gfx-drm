@@ -67,10 +67,18 @@
 #include "drm_mm.h"
 #include "drm_mode.h"
 
+#include "drm_sun_ref.h"
 #include "drm_sun_idr.h"
 #include "drm_sun_timer.h"
 #include "drm_sun_workqueue.h"
 #include "drm_sun_pci.h"
+#include "drm_sun_ww_mutex.h"
+#include "drm_sun_dma_fence.h"
+#include "drm_sun_dma_fence_array.h"
+#include "drm_sun_dma_resv.h"
+#include "drm_sun_completion.h"
+#include "drm_sun_managed.h"
+#include "drm_sun_debugfs.h"
 
 #ifndef __inline__
 #define	__inline__	inline

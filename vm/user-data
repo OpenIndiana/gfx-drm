@@ -1,0 +1,17 @@
+#cloud-config
+ssh_authorized_keys:
+  - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILcp4Wgea5V8N750xcRGil1rrdd+mCpwYBspNwwb45SN
+chpasswd:
+  list: |
+    root:openindiana
+  expire: False
+ssh_pwauth: True
+disable_root: False
+network:
+  version: 2
+  ethernets:
+    vioif0:
+      dhcp4: true
+growpart:
+  mode: auto
+  devices: ['/']

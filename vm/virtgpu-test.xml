@@ -1,0 +1,86 @@
+<domain type='kvm'>
+  <name>virtgpu-test</name>
+  <memory unit='GiB'>4</memory>
+  <currentMemory unit='GiB'>4</currentMemory>
+  <vcpu placement='static'>4</vcpu>
+  <os>
+    <type arch='x86_64' machine='pc-i440fx-6.2'>hvm</type>
+    <boot dev='hd'/>
+  </os>
+  <features>
+    <acpi/>
+    <apic/>
+  </features>
+  <cpu mode='host-model' check='partial'/>
+  <clock offset='utc'>
+    <timer name='rtc' tickpolicy='catchup'/>
+    <timer name='pit' tickpolicy='delay'/>
+    <timer name='hpet' present='no'/>
+  </clock>
+  <on_poweroff>destroy</on_poweroff>
+  <on_reboot>restart</on_reboot>
+  <on_crash>destroy</on_crash>
+  <devices>
+    <emulator>/usr/bin/qemu-system-x86_64</emulator>
+
+    <!-- SATA controller for boot disk -->
+    <controller type='sata' index='0'/>
+    <controller type='ide' index='0'/>
+
+    <!-- Boot disk -->
+    <disk type='file' device='disk'>
+      <driver name='qemu' type='qcow2' cache='writeback'/>
+      <source file='/home/toasty/ws/illumos/vm/oi-virtgpu-test.qcow2'/>
+      <target dev='sda' bus='sata'/>
+    </disk>
+
+    <!-- Cloud-init ISO -->
+    <disk type='file' device='cdrom'>
+      <driver name='qemu' type='raw'/>
+      <source file='/home/toasty/ws/illumos/vm/cidata.iso'/>
+      <target dev='hdc' bus='ide'/>
+      <readonly/>
+    </disk>
+
+    <!-- 9P filesystem: gfx-drm source for in-guest builds -->
+    <filesystem type='mount' accessmode='passthrough'>
+      <driver type='path' wrpolicy='immediate'/>
+      <source dir='/home/toasty/ws/illumos/gfx-drm'/>
+      <target dir='gfx-drm'/>
+    </filesystem>
+
+    <!-- Network: virtio on existing virbr0 bridge -->
+    <interface type='bridge'>
+      <source bridge='virbr0'/>
+      <model type='virtio'/>
+    </interface>
+
+    <!-- Serial console for headless access -->
+    <serial type='pty'>
+      <target type='isa-serial' port='0'>
+        <model name='isa-serial'/>
+      </target>
+    </serial>
+    <console type='pty'>
+      <target type='serial' port='0'/>
+    </console>
+
+    <!-- SPICE display for graphical output -->
+    <graphics type='spice' port='-1' autoport='yes' listen='127.0.0.1'>
+      <listen type='address' address='127.0.0.1'/>
+    </graphics>
+
+    <!-- Virtio-GPU: the device we're testing -->
+    <video>
+      <model type='virtio' heads='1'/>
+    </video>
+
+    <!-- Memory balloon -->
+    <memballoon model='virtio'/>
+
+    <!-- RNG for faster boot entropy -->
+    <rng model='virtio'>
+      <backend model='random'>/dev/urandom</backend>
+    </rng>
+  </devices>
+</domain>
