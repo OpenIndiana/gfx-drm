@@ -1,6 +1,7 @@
---- libdrm-2.4.109/intel/intel_bufmgr_gem.c.orig	2021-11-25 21:33:02.000000000 +0000
-+++ libdrm-2.4.109/intel/intel_bufmgr_gem.c	2021-12-28 14:55:05.655173523 +0000
-@@ -3357,13 +3357,24 @@
+diff ... libdrm-2.4.134/intel/intel_bufmgr_gem.c
+--- libdrm-2.4.134-ref/intel/intel_bufmgr_gem.c	2026-05-29 10:49:42
++++ libdrm-2.4.134/intel/intel_bufmgr_gem.c	2026-09-30 23:08:26
+@@ -3358,13 +3358,24 @@
  static pthread_mutex_t bufmgr_list_mutex = PTHREAD_MUTEX_INITIALIZER;
  static drmMMListHead bufmgr_list = { &bufmgr_list, &bufmgr_list };
  
@@ -26,8 +27,9 @@
  			atomic_inc(&bufmgr_gem->refcount);
  			return bufmgr_gem;
  		}
---- libdrm-2.4.109/intel/intel_decode.c.orig	2021-11-25 21:33:02.000000000 +0000
-+++ libdrm-2.4.109/intel/intel_decode.c	2021-12-28 14:55:05.656127083 +0000
+diff ... libdrm-2.4.134/intel/intel_decode.c
+--- libdrm-2.4.134-ref/intel/intel_decode.c	2026-05-29 10:49:42
++++ libdrm-2.4.134/intel/intel_decode.c	2026-09-30 23:08:26
 @@ -398,6 +398,7 @@
  		format = "1555";
  		break;

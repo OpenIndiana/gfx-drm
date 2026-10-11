@@ -25,9 +25,10 @@
 # or other dealings in this Software without prior written authorization
 # of the copyright holder.
 
---- libdrm-2.4.109/include/drm/drm.h.orig	2021-11-25 21:33:02.000000000 +0000
-+++ libdrm-2.4.109/include/drm/drm.h	2021-12-28 13:56:31.700232551 +0000
-@@ -55,14 +55,40 @@
+diff ... libdrm-2.4.134/include/drm/drm.h
+--- libdrm-2.4.134-ref/include/drm/drm.h	2026-05-29 10:49:42
++++ libdrm-2.4.134/include/drm/drm.h	2026-09-30 23:08:40
+@@ -55,14 +55,48 @@
  typedef int64_t  __s64;
  typedef uint64_t __u64;
  typedef size_t   __kernel_size_t;
@@ -45,7 +46,15 @@
  extern "C" {
  #endif
  
-+/* Solaris-specific. */
++/*
++ * Solaris-specific.
++ *
++ * DRM_IO*() below use _IO*() from <sys/ioccom.h>, which keeps only the
++ * low eight bits of the argument size (IOCPARM_MASK).  _IOC() is used by
++ * drmCommandRead(), drmCommandWrite() and drmCommandWriteRead() through
++ * DRM_IOC(); it must encode the same command number as DRM_IOWR() for
++ * the same argument, so it masks the size in the same way.
++ */
 +#if defined(__SOLARIS__) || defined(__sun)
 +
 +#define        _IOC_NRBITS     8
@@ -62,14 +71,14 @@
 +       (((dir) /* already shifted */) | \
 +       ((type) << _IOC_TYPESHIFT) | \
 +       ((nr)   << _IOC_NRSHIFT) | \
-+       ((size) << _IOC_SIZESHIFT))
++       (((size) & IOCPARM_MASK) << _IOC_SIZESHIFT))
 +
 +#endif /* __Solaris__ or __sun */
 +
  #define DRM_NAME	"drm"	  /**< Name in kernel, /dev, and /proc */
  #define DRM_MIN_ORDER	5	  /**< At least 2^5 bytes = 32 bytes */
  #define DRM_MAX_ORDER	22	  /**< Up to 2^22 bytes = 4MB */
-@@ -185,7 +211,8 @@
+@@ -185,7 +219,8 @@
  	_DRM_SHM = 2,		  /**< shared, cached */
  	_DRM_AGP = 3,		  /**< AGP/GART */
  	_DRM_SCATTER_GATHER = 4,  /**< Scatter/gather memory for PCI DMA */
@@ -79,7 +88,7 @@
  };
  
  /*
-@@ -214,12 +241,13 @@
+@@ -214,12 +249,13 @@
   * \sa drmAddMap().
   */
  struct drm_map {
@@ -96,7 +105,7 @@
  	int mtrr;		 /**< MTRR slot used */
  	/*   Private data */
  };
-@@ -326,18 +354,22 @@
+@@ -326,18 +362,22 @@
   *
   * \sa drmAddBufs().
   */
@@ -126,7 +135,7 @@
  	unsigned long agp_start; /**<
  				  * Start address of where the AGP buffers are
  				  * in the AGP aperture
-@@ -383,6 +415,7 @@
+@@ -383,6 +423,7 @@
  	void *virtual;		/**< Mmap'd area in user-virtual */
  #endif
  	struct drm_buf_pub *list;	/**< Buffer information */

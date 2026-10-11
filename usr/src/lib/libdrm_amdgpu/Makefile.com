@@ -28,10 +28,11 @@
 LIBRARY=	libdrm_amdgpu.a
 VERS=		.1
 
-# See common/libdrm/libdrm-*/amdgpu/Makefile.in am__objects
+# See common/libdrm/libdrm-*/amdgpu/meson.build
 OBJECTS= \
 	amdgpu_asic_id.o amdgpu_bo.o amdgpu_cs.o amdgpu_device.o \
-	amdgpu_gpu_info.o amdgpu_vamgr.o amdgpu_vm.o handle_table.o
+	amdgpu_gpu_info.o amdgpu_vamgr.o amdgpu_vm.o handle_table.o \
+	amdgpu_userq.o
 
 include ../../Makefile.lib
 include $(SRC)/common/libdrm/Makefile.drm

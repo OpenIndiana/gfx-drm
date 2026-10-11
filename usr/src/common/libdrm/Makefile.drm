@@ -16,7 +16,7 @@
 # This make include is used in $SRC/lib/libdrm/*
 #
 # See also: ./Makefile LIBDRM_VERS, ./Check-patches
-LIBDRM_VERS=2.4.109
+LIBDRM_VERS=2.4.134
 
 LIBDRM_CMN_DIR=$(SRC)/common/libdrm/libdrm-$(LIBDRM_VERS)
 
@@ -25,15 +25,14 @@ ROOTLIBDIR64 =	$(ROOT)/usr/lib/xorg/$(MACH64)
 
 CPPFLAGS +=	-D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE
 
-# Defines that would normally come from autoconf.  Look through
-# libdrm-$(LIBDRM_VERS)/config.h.in when updating libdrm to
-# check for new ones we might need to define.
+# Defines that would normally come from meson's config.h.  Look through
+# the config.set*() calls in libdrm-$(LIBDRM_VERS)/meson.build when
+# updating libdrm to check for new ones we might need to define.
 CPPFLAGS +=	-DHAVE_ALLOCA_H
 CPPFLAGS +=	-DMAJOR_IN_MKDEV
 
 # Additional CPPFLAG defines in:
 #  $SRC/cmd/drm-tests/util  HAVE_CAIRO
-#  $SRC/lib/libkms  HAVE_INTEL (_VMWGFX,_NOUVEAU,_RADEON,_EXYNOS)
 
 CPPFLAGS +=	-I$(SRC)/uts/common \
 		-I$(SRC)/uts/common/drm \

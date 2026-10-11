@@ -1,0 +1,180 @@
+libdrm on illumos
+=================
+
+This directory builds libdrm 2.4.134 (https://dri.freedesktop.org/libdrm/,
+SHA-256 ac5e74d157830eb8bee44c6a6bf3ad49774ef0dd2a72bdad74a8f20308b52a95)
+with the patches in patches/ and the illumos sources in
+usr/src/lib/libdrm/common.  It serves two kernels:
+
+ - gfx-drm's own drm and i915 modules (usr/src/uts), Intel gen2 to gen7.5
+   at the level of Linux 3.12;
+ - newer DRM kernel drivers that provide card and render nodes.
+
+
+Version
+-------
+
+2.4.134 was the current release on 2026-09-30.  Mesa needs:
+
+	Mesa		libdrm	libdrm_amdgpu	libdrm_intel
+	25.0 - 25.2	2.4.109	2.4.121		2.4.75
+	26.2, main	2.4.109	2.4.133		2.4.75
+
+crocus, iris, virgl and venus need only libdrm itself (2.4.109; they carry
+their own uAPI headers).  libdrm_amdgpu 2.4.133 is the highest requirement
+(radeonsi, radv), and 2.4.134 meets it.
+
+
+Patches (patches/)
+------------------
+
+Kept, rebased:
+  incl-drm-drm-h.patch       drm_handle_t is 64 bits wide, the drm_map,
+                             drm_buf_desc and drm_buf_map layouts of the
+                             gfx-drm kernel, _DRM_GEM, and the illumos
+                             _IOC() (see "ioctl numbers").  The patched
+                             header must match uts/common/drm/drm.h.
+  incl-drm-i915-drm-h.patch  sarea padding, IOW instead of IOWR for the
+                             three legacy ioctls that copy out themselves,
+                             and the 32-bit argument structures of the
+                             gfx-drm i915 kernel.
+  intel-drm.patch            drm_intel_bufmgr_gem_find() also matches a
+                             different descriptor of the same open file;
+                             a gcc warning in intel_decode.c.
+  exynos.patch               gcc -Wmaybe-uninitialized in exynos_fimg2d.c
+                             (only the warning fix is left).
+  modesetting.patch          drmCheckModesettingSupported() returns 0.
+  pkgconfig-in.patch         -R${libdir} and the include/drm directory.
+
+Rewritten:
+  xf86drm-c.patch            the illumos branches of xf86drm.c, which call
+                             into lib/libdrm/common/sun_devinfo.c and
+                             sun_ioctl.c (below).
+
+Dropped (upstream no longer needs them):
+  etnaviv.patch, omap.patch, freedreno.patch  (no <linux/*.h> includes
+                             left upstream), libdrm-lists-h.patch,
+                             util-double-list-h.patch (upstream uses
+                             __typeof__), xf86drm-h.patch (the _sun_drm_*
+                             helpers are no longer public; their prototypes
+                             are in the private sun_devinfo.h).
+
+Upstream removed libkms (2.4.111) and tests/kms, tests/kmstest; the gate
+no longer builds or packages them.  No OpenIndiana component links libkms.
+
+generated_static_table_fourcc.h is generated at build time from the
+patched drm_fourcc.h by upstream's gen_table_fourcc.py (Makefile, target
+.patched), as meson does.
+
+
+The device layer (lib/libdrm/common/sun_devinfo.c)
+--------------------------------------------------
+
+Linux libdrm answers "which node is this file, which device is it, which
+bus" from sysfs.  On illumos:
+
+ - Nodes are the /dev/dri links made by devfsadm's SUNW_drm_link for minor
+   nodes of type ddi_display:drm.  The node type comes from the link name
+   (card<N> primary, renderD<N> render, controlD<N> control), not from the
+   minor number:
+
+	kernel		minor name	link		node minor
+	newer drivers	card<N>		card<N>		N
+			renderD<128+N>	renderD<128+N>	128 + N
+	gfx-drm		drm<N>		card<N>		N
+			controlD<N>	controlD<N>	64 + N
+
+ - Every open is a clone open in both kernels: the file's minor number has
+   the node minor in its low nine bits and a clone id above.  A file is
+   matched to its node by the major number and the low nine bits, so every
+   open of a node (not only the first) finds it.  Majors are dynamic and
+   per driver; there is no DRM_MAJOR and libdrm never creates nodes.
+ - Links that resolve to the same /devices path (up to the ':') belong to
+   the same device; that pairs a card node with its render node.
+ - The device node is read with libdevinfo.  A node counts as DRM only if
+   its device has a minor of type ddi_display:drm with that dev_t,
+   whatever the device node is called (VGA functions are "display",
+   virtio-gpu is "pci1af4,1100").  If the parent nexus has device_type
+   "pci" or "pciex", the device is DRM_BUS_PCI: bus, device and function
+   from its "reg" (or "assigned-addresses") property, vendor, device,
+   subsystem and revision from its PCI properties; the PCI domain is 0.  A
+   child of the pseudo nexus (a driver without hardware) is DRM_BUS_FAUX,
+   named after its devfs node ("<driver>@0"), as Linux reports vgem and
+   vkms.  Other buses are not enumerated.
+
+xf86drm.c uses this for drmGetDevices2, drmGetDevice2 (and
+drmGetDeviceFromDevId), drmGetNodeTypeFromFd, drmGetDeviceNameFromFd,
+drmGetDeviceNameFromFd2, drmGetPrimaryDeviceNameFromFd,
+drmGetRenderDeviceNameFromFd and the minor-type lookup behind them.
+/opt/drm-tests/amd64/getsundev checks all of them for every node.
+
+
+ioctl numbers
+-------------
+
+DRM_IO*() in drm.h are the illumos _IO*() of <sys/ioccom.h>: direction in
+the top bits, the argument size masked to eight bits (IOCPARM_MASK) at
+bit 16, 'd' at bit 8, the number in the low byte.  A kernel therefore
+cannot learn a size above 255 bytes from the command.  drm.h's own _IOC(),
+which drmCommandRead/Write/WriteRead() use through DRM_IOC(), masks the
+size the same way, so both paths give the same command for the same
+argument (before 2.4.134 it did not, and sizes above 255 bytes differed).
+
+Four core structures grew since libdrm 2.4.109, so their commands have new
+numbers: drm_syncobj_handle (16 -> 24 bytes, SYNCOBJ_HANDLE_TO_FD and
+SYNCOBJ_FD_TO_HANDLE), drm_syncobj_wait (32 -> 40, SYNCOBJ_WAIT) and
+drm_syncobj_timeline_wait (40 -> 48, SYNCOBJ_TIMELINE_WAIT).  Linux's
+drm_ioctl() accepts every size; a kernel that matches the whole command
+value and knows only the 2.4.109 sizes answers ENOTTY.  drmIoctl() therefore
+retries such a command with the older size when the kernel answers ENOTTY
+and the added fields are zero (sun_ioctl.c).  The virtgpu commands
+EXECBUFFER (32/40/64 bytes) and TRANSFER_* (36/44) grew as well; a
+virtio-gpu driver has to accept all their sizes itself.
+No drm_mode.h or i915_drm.h structure changed size.
+
+
+Headers
+-------
+
+drm.h, drm_fourcc.h, drm_mode.h, drm_sarea.h and i915_drm.h are shipped
+from uts/common/drm (package system/header/header-drm) and must be
+identical to the patched libdrm copies; "make check" in this directory
+compares them.  The other uAPI headers (amdgpu, mach64, mga, msm, nouveau,
+qxl, r128, radeon, savage, sis, tegra, vc4, via, virtgpu, vmwgfx) are
+shipped unchanged from libdrm by x11/library/libdrm.  The headers define
+more than either kernel implements; a constant in a header does not mean
+the running kernel supports it.  Ask the kernel (DRM_IOCTL_GET_CAP,
+DRM_IOCTL_VERSION, driver GETPARAMs) instead.
+
+What the gfx-drm kernel implements:
+
+  gfx-drm drm + i915 (usr/src/uts):
+    core      VERSION, GET_UNIQUE, GET_MAGIC, IRQ_BUSID, GET_MAP,
+              GET_CLIENT, GET_STATS, GET_CAP (DUMB_BUFFER,
+              VBLANK_HIGH_CRTC, DUMB_PREFERRED_DEPTH, DUMB_PREFER_SHADOW),
+              SET_VERSION, SET_UNIQUE, AUTH_MAGIC, SET_MASTER,
+              DROP_MASTER, the DRI1 map, context, lock, buffer, AGP and
+              scatter/gather ioctls, WAIT_VBLANK, MODESET_CTL
+    GEM       GEM_CLOSE, GEM_FLINK, GEM_OPEN, MODE_CREATE_DUMB,
+              MODE_MAP_DUMB, MODE_DESTROY_DUMB
+    KMS       MODE_GETRESOURCES, MODE_GETPLANERESOURCES, MODE_GETCRTC,
+              MODE_SETCRTC, MODE_GETPLANE, MODE_SETPLANE, MODE_CURSOR,
+              MODE_CURSOR2, MODE_GETGAMMA, MODE_SETGAMMA, MODE_GETENCODER,
+              MODE_GETCONNECTOR, MODE_GETPROPERTY, MODE_SETPROPERTY,
+              MODE_GETPROPBLOB, MODE_GETFB, MODE_ADDFB, MODE_ADDFB2,
+              MODE_RMFB, MODE_PAGE_FLIP, MODE_DIRTYFB,
+              MODE_OBJ_GETPROPERTIES, MODE_OBJ_SETPROPERTY
+    i915      INIT, FLUSH, FLIP, BATCHBUFFER, IRQ_EMIT, IRQ_WAIT,
+              GETPARAM, SETPARAM, ALLOC, FREE, INIT_HEAP, CMDBUFFER,
+              DESTROY_HEAP, GET_VBLANK_PIPE, VBLANK_SWAP, HWS_ADDR,
+              GEM_INIT, GEM_EXECBUFFER,
+              GEM_EXECBUFFER2, GEM_PIN, GEM_UNPIN, GEM_BUSY,
+              GEM_SET_CACHING, GEM_GET_CACHING, GEM_THROTTLE,
+              GEM_ENTERVT, GEM_LEAVEVT, GEM_CREATE, GEM_PREAD, GEM_PWRITE,
+              GEM_MMAP, GEM_MMAP_GTT, GEM_SET_DOMAIN, GEM_SW_FINISH,
+              GEM_SET_TILING, GEM_GET_TILING, GEM_GET_APERTURE,
+              GET_PIPE_FROM_CRTC_ID, GEM_MADVISE, OVERLAY_PUT_IMAGE,
+              OVERLAY_ATTRS, SET_SPRITE_COLORKEY, GET_SPRITE_COLORKEY,
+              GEM_WAIT, GEM_CONTEXT_CREATE, GEM_CONTEXT_DESTROY, REG_READ
+    Not: render nodes, PRIME, sync objects, SET_CLIENT_CAP, atomic,
+    GETFB2, the i915 ioctls after Linux 3.12.

@@ -49,9 +49,6 @@ dir  path=kernel/misc group=sys
 dir  path=kernel/misc/$(ARCH64) group=sys
 file path=kernel/misc/$(ARCH64)/drm group=sys mode=0755
 dir  path=usr/lib
-dir  path=usr/lib/devfsadm group=sys
-dir  path=usr/lib/devfsadm/linkmod group=sys
-file path=usr/lib/devfsadm/linkmod/SUNW_drm_link_i386.so group=sys mode=0755
 dir  path=usr/lib/mdb group=sys
 dir  path=usr/lib/mdb/kvm group=sys
 dir  path=usr/lib/mdb/kvm/$(ARCH64) group=sys
@@ -182,3 +179,4 @@ license usr/src/uts/common/io/drm/LICENSE_DRM \
 license usr/src/uts/intel/io/i915/LICENSE_I915 \
     license=usr/src/uts/intel/io/i915/LICENSE_I915
 depend type=require fmri=pkg:/driver/graphics/agpgart
+depend type=require fmri=pkg:/driver/graphics/drm-devlink

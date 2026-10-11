@@ -28,7 +28,7 @@
 LIBRARY=	libdrm_omap.a
 VERS=		.1
 
-# See common/libdrm/libdrm-*/omap/Makefile.in am__objects
+# See common/libdrm/libdrm-*/omap/meson.build
 OBJECTS= \
 	omap_drm.o
 

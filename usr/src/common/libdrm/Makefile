@@ -23,12 +23,12 @@ FETCH=	$(PYTHON) $(SRC)/tools/userland-fetch
 
 # See also: ./Makefile.drm LIBDRM_VERS and ./Check-patches
 # PLEASE RUN Check-patches after updating!
-LIBDRM_VERS=2.4.109
+LIBDRM_VERS=2.4.134
 
 LIBDRM_DIR=libdrm-$(LIBDRM_VERS)
 LIBDRM_ARCHIVE=$(LIBDRM_DIR).tar.xz
-LIBDRM_URL=http://dri.freedesktop.org/libdrm/$(LIBDRM_ARCHIVE)
-LIBDRM_HASH=sha256:629352e08c1fe84862ca046598d8a08ce14d26ab25ee1f4704f993d074cb7f26
+LIBDRM_URL=https://dri.freedesktop.org/libdrm/$(LIBDRM_ARCHIVE)
+LIBDRM_HASH=sha256:ac5e74d157830eb8bee44c6a6bf3ad49774ef0dd2a72bdad74a8f20308b52a95
 
 def all install install_h: .patched check
 
@@ -55,7 +55,10 @@ check: FRC
 .patched: .unpacked
 	(cd $(LIBDRM_DIR) && \
 	for p in ../patches/*.patch ; do \
-	patch -b -N -p 1 -i $$p ; done )
+	patch -b -N -p 1 -i $$p || exit 1 ; done )
+	$(PYTHON) $(LIBDRM_DIR)/gen_table_fourcc.py \
+	    $(LIBDRM_DIR)/include/drm/drm_fourcc.h \
+	    $(LIBDRM_DIR)/generated_static_table_fourcc.h
 	touch $@
 
 .unpacked: $(USERLAND_ARCHIVES)$(LIBDRM_ARCHIVE)

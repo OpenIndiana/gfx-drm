@@ -1,23 +1,33 @@
+Sep-30-2026 - libdrm 2.4.134
 
-Dec-30-2021 - Klaus Ziegler
+See usr/src/common/libdrm/README.illumos for the patches, the illumos
+device layer, the ioctl encoding and what each kernel implements.
 
-Issues left over up from release 2.4.109:
+Resolved since 2.4.109:
 
-1. This is just the upgrade from libdrm-2.4.75 to 2.4.109, no new functionality
-   of libdrm-2.4.109 has been checked or reflected in any manifest file, this
-   will be done in subsequent #PRs.
+ - The generated_static_table_fourcc.h header is generated at build time
+   from the patched drm_fourcc.h with upstream's gen_table_fourcc.py
+   (usr/src/common/libdrm/Makefile), as meson does.
+ - The libraries are built 64-bit only (lib/*/amd64).
+ - libdrm finds DRM devices by their /dev/dri links and devinfo minor
+   node type (ddi_display:drm) instead of devinfo nodes named "display";
+   render nodes, clone opens and PCI functions that are not VGA class
+   (virtio-gpu) work, and the PCI location comes from the "reg" property.
 
-2. Implement dynamic creation of the new header file:
+Open:
 
-   - generated_static_table_fourcc.h
+1. The creation of manual pages is disabled in usr/src/man/Makefile for
+   man3 and man7, because illumos distributions do not ship rst2man(1).
 
-   into the build process of gfx-drm using Python, the regular build process
-   of libdrm uses meson to build this header file. For the moment, the supplied
-   header file was created using a regular meson build of the library on SPARC
-   and Intel platforms to make sure there are no differences.
+2. illumos reports PCI domain 0 for every device (no segment number in
+   the device tree), like OpenBSD's libdrm.
 
-3. The creation of manual pages has been disabled in usr/src/man/Makefile
-   for subdirectories man3 and man7, because illumos based distributions up to
-   date don't include rst2man(1) command.
+3. The gfx-drm kernel never creates render nodes, so its devices have a
+   primary node only.  Its uAPI is that of Linux 3.12 while the headers
+   are those of Linux 6.x; see README.illumos for what it implements.
 
-4. Get rid of 32bit support.
+4. Kernels that know only the libdrm 2.4.109 size of a grown core
+   argument structure (the sync object handle and wait ioctls) are
+   served by a retry in drmIoctl()
+   (lib/libdrm/common/sun_ioctl.c).  Such a kernel should accept every
+   size, as Linux's drm_ioctl() does.

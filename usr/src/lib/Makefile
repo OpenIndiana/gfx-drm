@@ -49,7 +49,6 @@ SUBDIRS= \
 
 i386_SUBDIRS= \
 	libdrm .WAIT \
-	libkms \
 	libdrm_intel \
 	libdrm_amdgpu \
 	libdrm_exynos \

@@ -28,8 +28,8 @@
 LIBRARY=	libdrm_tegra.a
 VERS=		.0
 
-# See common/libdrm/libdrm-*/tegra/Makefile.in am__objects
-OBJECTS= tegra.o
+# See common/libdrm/libdrm-*/tegra/meson.build
+OBJECTS= channel.o job.o pushbuf.o syncpt.o tegra.o
 
 include ../../Makefile.lib
 include $(SRC)/common/libdrm/Makefile.drm

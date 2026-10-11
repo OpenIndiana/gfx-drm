@@ -20,7 +20,7 @@ include	../../Makefile.drm
 
 SRCDIR= $(LIBDRM_CMN_DIR)/tests
 
-LDLIBS	 +=	-ldrm -lm -ldevinfo
+LDLIBS	 +=	-ldrm -lm
 
 LDLIBS32 +=	-L$(ROOT)/usr/lib/xorg \
 		-R/usr/lib/xorg
