@@ -121,7 +121,7 @@ static devfsadm_remove_t drm_remove_cbt[] = {
 	{ "agp", "^agp/cpugart[0-9]+$", RM_POST,
 		ILEVEL_0, devfsadm_rm_all
 	},
-	{ "drm", "^dri/[a-z]D?[0-9]+$", RM_POST,
+	{ "drm", "^dri/[a-z]+D?[0-9]+$", RM_POST,
 		ILEVEL_0, devfsadm_rm_all
 	},
 };
