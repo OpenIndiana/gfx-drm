@@ -118,7 +118,7 @@
 #define swap(a, b) \
 	do { int tmp = (a); (a) = (b); (b) = tmp; } while (__lintzero)
 
-#define abs(x) ((x < 0) ? -x : x)
+#define abs(x) (((x) < 0) ? -(x) : (x))
 
 #define div_u64(x, y) ((unsigned long long)(x))/((unsigned long long)(y))  /* XXX FIXME */
 #define roundup(x, y) ((((x) + ((y) - 1)) / (y)) * (y))
